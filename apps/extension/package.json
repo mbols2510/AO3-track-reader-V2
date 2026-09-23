@@ -1,0 +1,9 @@
+{
+  "name": "@ao3track/extension",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": { "@ao3track/core": "*", "@ao3track/content": "*" },
+  "devDependencies": { "@types/chrome": "^0.3.0" }
+}

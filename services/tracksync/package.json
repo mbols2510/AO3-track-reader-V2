@@ -1,0 +1,19 @@
+{
+  "name": "@ao3track/tracksync",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ao3Track sync server (wire-compatible with the original Ao3tracksync ASP.NET service)",
+  "scripts": {
+    "build": "node ../../scripts/build-service.mjs tracksync",
+    "start": "node dist/server.js",
+    "dev": "node --experimental-transform-types --no-warnings src/server.ts"
+  },
+  "dependencies": {
+    "@ao3track/core": "*",
+    "fastify": "^5.12.5",
+    "@fastify/formbody": "^9.0.0",
+    "@fastify/static": "^10.1.4",
+    "@fastify/multipart": "^10.1.2"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@ao3track/tracker",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Rate-limited, caching AO3 gateway: work metadata and scheduled reading-list refresh",
+  "scripts": {
+    "build": "node ../../scripts/build-service.mjs tracker",
+    "start": "node dist/server.js",
+    "dev": "node --experimental-transform-types --no-warnings src/server.ts"
+  },
+  "dependencies": {
+    "@ao3track/core": "*",
+    "fastify": "^5.12.5",
+    "@fastify/static": "^10.1.4"
+  }
+}

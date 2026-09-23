@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <title>Ao3 Tracker</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header><span class="logo">📚</span><div><strong>Ao3 Tracker</strong><small id="status-line">…</small></div><button id="sync" class="ghost">Sync now</button></header>
+  <main>
+    <section class="card" id="account">
+      <h2>Sync account</h2>
+      <div id="signed-in" hidden>
+        <p>Signed in as <strong id="uname"></strong> on <code id="server-show"></code></p>
+        <p class="muted" id="counts"></p>
+        <button id="logout">Sign out</button>
+      </div>
+      <form id="login" class="stack" hidden>
+        <label>Server <input name="server" placeholder="http://localhost:8080" required></label>
+        <div class="row">
+          <label>Username <input name="username" autocomplete="username" required></label>
+          <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+        </div>
+        <label class="check"><input type="checkbox" name="create"> Create a new account on this server</label>
+        <p class="err" id="login-err"></p>
+        <button class="primary" type="submit">Sign in</button>
+        <p class="muted small">Your self-hosted TrackSync server. To keep using the original service, enter <code>https://wenchy.net/ao3track</code>.</p>
+      </form>
+    </section>
+
+    <section class="card full">
+      <h2>Display</h2>
+      <div class="grid2">
+        <label class="check"><input type="checkbox" data-k="tags.showRatingTags"> Show rating as a tag</label>
+        <label class="check"><input type="checkbox" data-k="tags.showCatTags"> Show category as a tag</label>
+        <label class="check"><input type="checkbox" data-k="tags.showWIPTags"> Show complete / WIP as a tag</label>
+        <label class="check"><input type="checkbox" data-k="override_site_theme"> Use AO3's dark skin</label>
+        <label class="check"><input type="checkbox" data-k="listFiltering.onlyGeneralTeen"> Only show General / Teen works</label>
+        <label class="check"><input type="checkbox" data-k="listFiltering.hideFilteredWorks"> Hide filtered works completely</label>
+      </div>
+      <h3>Unit conversion <span class="muted small">(click a measurement in a story to convert it)</span></h3>
+      <div class="grid2">
+        <label>Temperature <select data-k="unitConv.temp"></select></label>
+        <label>Distance <select data-k="unitConv.dist"></select></label>
+        <label>Volume <select data-k="unitConv.volume"></select></label>
+        <label>Weight <select data-k="unitConv.weight"></select></label>
+      </div>
+    </section>
+
+    <section class="card full">
+      <h2>List filters</h2>
+      <p class="muted small">Right-click a tag, author, work or series link on AO3 → "Hide works matching this link".</p>
+      <ul id="filters" class="chips"></ul>
+    </section>
+  </main>
+  <script src="options.js" type="module"></script>
+</body>
+</html>

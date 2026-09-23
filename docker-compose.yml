@@ -1,0 +1,51 @@
+name: ao3track
+
+# Quick start:  cp .env.example .env  (set INTERNAL_TOKEN)  →  docker compose up -d --build
+# Dashboard:    http://localhost:8080      Tracker status: http://localhost:8081/api/status
+
+services:
+  tracksync:
+    build: { context: ., target: tracksync }
+    image: ao3track/tracksync:2.0.0
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${TRACKSYNC_PORT:-8080}:8080"
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN in .env (see .env.example)}
+      TRACKER_URL: http://tracker:8081
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      PUBLIC_URL: ${TRACKSYNC_PUBLIC_URL:-http://localhost:8080}
+      LEGACY_API_URL: ${LEGACY_API_URL:-https://wenchy.net/ao3track/api}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      - tracksync-data:/data
+
+  tracker:
+    build: { context: ., target: tracker }
+    image: ao3track/tracker:2.0.0
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${TRACKER_PORT:-8081}:8081"
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN in .env (see .env.example)}
+      TRACKSYNC_URL: http://tracksync:8080
+      # How gently to treat AO3 (defaults ≈ 10 requests/minute, one at a time).
+      RATE_BURST: ${RATE_BURST:-3}
+      RATE_REFILL_SECONDS: ${RATE_REFILL_SECONDS:-6}
+      RATE_MIN_INTERVAL_SECONDS: ${RATE_MIN_INTERVAL_SECONDS:-2}
+      RATE_PAUSE_MINUTES: ${RATE_PAUSE_MINUTES:-5}
+      CACHE_TTL_HOURS: ${CACHE_TTL_HOURS:-6}
+      REFRESH_INTERVAL_HOURS: ${REFRESH_INTERVAL_HOURS:-6}
+      USER_AGENT: ${USER_AGENT:-Ao3Track/2.0 (self-hosted personal reading tracker)}
+      AO3_COOKIE: ${AO3_COOKIE:-}
+      API_KEY: ${TRACKER_API_KEY:-}
+    volumes:
+      - tracker-data:/data
+    depends_on:
+      tracksync:
+        condition: service_healthy
+
+volumes:
+  tracksync-data:
+  tracker-data:

@@ -1,0 +1,22 @@
+# Remote access through a Cloudflare Tunnel: no port forwarding, works behind CGNAT.
+# Domain must use Cloudflare DNS. Public hostnames are set in the Cloudflare dashboard:
+#   sync.<domain>    -> http://tracksync:8080
+#   tracker.<domain> -> http://tracker:8081
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+services:
+  tracksync:
+    environment:
+      TRUST_PROXY: "true"
+      PUBLIC_URL: https://${SYNC_DOMAIN:?Set SYNC_DOMAIN in .env}
+
+  tracker:
+    environment:
+      API_KEY: ${TRACKER_API_KEY:?Set TRACKER_API_KEY in .env before exposing the tracker}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on: [tracksync, tracker]

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'">
+  <meta name="color-scheme" content="light dark">
+  <title>Archive Track Reader</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="group">
+      <button class="icon" id="btn-pane" title="Reading list (Ctrl+B)" data-icon="list"><span class="count" id="unread-total" hidden></span></button>
+      <span class="sep"></span>
+      <button class="icon" id="btn-back" title="Back (Alt+←)" data-icon="back" disabled></button>
+      <button class="icon" id="btn-fwd" title="Forward (Alt+→)" data-icon="forward" disabled></button>
+      <button class="icon" id="btn-reload" title="Reload (F5)" data-icon="reload"></button>
+      <button class="icon" id="btn-home" title="AO3 home" data-icon="home"></button>
+    </div>
+
+    <form id="address" autocomplete="off">
+      <div class="pill">
+        <input id="url" spellcheck="false" placeholder="Search AO3, paste a link, or type a work number">
+        <div class="pill-label" id="pill-label"><span id="pill-title">Archive Track Reader</span><span id="pill-sub"></span></div>
+        <div class="progress" id="progress"></div>
+      </div>
+    </form>
+
+    <div class="group">
+      <button class="icon" id="btn-prev" title="Previous chapter/page (Ctrl+Shift+←)" data-icon="chevron-left" disabled></button>
+      <button class="icon" id="btn-next" title="Next chapter/page (Ctrl+Shift+→)" data-icon="chevron-right" disabled></button>
+      <button class="chip" id="btn-jump" title="Jump to where you left off (Ctrl+J)" hidden><i data-icon="bookmark-jump"></i><span>Continue</span></button>
+      <button class="icon" id="btn-rl" title="Add to reading list (Ctrl+D)" data-icon="star"></button>
+      <span class="sep"></span>
+      <button class="icon" id="btn-font-down" title="Smaller text (Ctrl+−)" data-icon="text-smaller"></button>
+      <button class="icon" id="btn-font-up" title="Larger text (Ctrl+=)" data-icon="text-larger"></button>
+      <span class="sep"></span>
+      <button class="icon sync" id="btn-sync" title="Sync" data-icon="cloud"><span class="dot"></span></button>
+      <button class="icon" id="btn-settings" title="Settings" data-icon="settings"></button>
+    </div>
+  </header>
+
+  <div id="banner" hidden><span id="banner-text"></span><button class="link" id="banner-close">Dismiss</button></div>
+
+  <aside id="pane-left" class="pane">
+    <div class="pane-head">
+      <h2>Reading list <span class="muted" id="rl-count"></span></h2>
+      <button class="icon small" id="rl-refresh" title="Check for updates" data-icon="reload"></button>
+    </div>
+    <p class="status" id="rl-status"></p>
+    <div class="rl-tools">
+      <input type="search" id="rl-search" placeholder="Filter by title, author, fandom…">
+      <div class="seg" id="rl-filter">
+        <button data-v="all" class="on">All</button><button data-v="unread">Unread</button><button data-v="complete">Complete</button><button data-v="favourites" title="Favourites">★</button>
+      </div>
+      <select id="rl-sort" title="Sort">
+        <option value="unread">Most unread</option>
+        <option value="updated">Recently updated</option>
+        <option value="added">Recently added</option>
+        <option value="title">Title</option>
+      </select>
+    </div>
+    <ul id="rl-list" class="rl-list"></ul>
+  </aside>
+
+  <main id="content">
+    <div id="content-msg" class="content-msg" hidden></div>
+  </main>
+
+  <aside id="pane-right" class="pane" hidden>
+    <div class="pane-head"><h2>Settings</h2><button class="icon small" id="settings-close" data-icon="close" title="Close"></button></div>
+    <div class="settings">
+
+      <section>
+        <h3>Sync</h3>
+        <div id="acct-in" hidden>
+          <p>Signed in as <strong id="acct-name"></strong><br><code id="acct-server" class="muted"></code></p>
+          <p class="muted small" id="acct-status"></p>
+          <div class="row"><button id="acct-sync" class="primary">Sync now</button><button id="acct-out">Sign out</button></div>
+        </div>
+        <form id="acct-form" class="stack" hidden>
+          <label>Sync server <input name="server" placeholder="http://localhost:8080" required></label>
+          <div class="row">
+            <label>Username <input name="username" required autocomplete="username"></label>
+            <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="create"> Create a new account on this server</label>
+          <p class="err" id="acct-err"></p>
+          <button class="primary" type="submit">Sign in</button>
+          <p class="muted small">Your TrackSync server from docker-compose. Without one, your progress is kept on this PC only.</p>
+        </form>
+      </section>
+
+      <section>
+        <h3>Tracker service <span class="badge-opt">optional</span></h3>
+        <p class="muted small">When set, reading-list updates come from your tracker container, which paces all AO3 requests in one place. Leave empty to have the reader check AO3 itself (also rate-limited).</p>
+        <input id="tracker-url" placeholder="http://localhost:8081 or https://tracker.yourdomain.com">
+        <div class="row"><input id="tracker-key" type="password" placeholder="API key (only if the tracker has one)" autocomplete="off"><button id="tracker-test">Test</button></div>
+        <p class="small" id="tracker-out"></p>
+        <label>Check reading list for updates
+          <select id="refresh-hours"><option value="0">Only when I ask</option><option value="1">Every hour</option><option value="3">Every 3 hours</option><option value="6">Every 6 hours</option><option value="12">Every 12 hours</option><option value="24">Daily</option></select>
+        </label>
+      </section>
+
+      <section class="accent">
+        <h3>Bring over data from the original app</h3>
+        <p class="muted small">Copies your positions, reading list and filters from the original Archive Track Reader cloud service. Nothing there is changed or deleted, and you can run it again safely.</p>
+        <form id="migrate-form" class="stack">
+          <div class="row">
+            <label>Old username <input name="username" required autocomplete="off"></label>
+            <label>Old password <input name="password" type="password" required autocomplete="off"></label>
+          </div>
+          <details><summary class="small">Advanced</summary><label>Old service API <input name="baseUrl" placeholder="https://wenchy.net/ao3track/api"></label></details>
+          <button class="primary" type="submit">Import from original service</button>
+          <p class="small" id="migrate-out"></p>
+        </form>
+        <p class="muted small">Old service offline? Upload the old app's <code>Ao3TrackSQLite.db3</code> in your TrackSync dashboard instead.</p>
+      </section>
+
+      <section>
+        <h3>Appearance</h3>
+        <div class="seg" id="theme">
+          <button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button>
+        </div>
+        <label class="check"><input type="checkbox" data-k="override_site_theme"> Use AO3's dark “Reversi” skin in dark mode</label>
+        <label>Story text size <span class="muted" id="font-val"></span>
+          <input type="range" id="font-size" min="60" max="250" step="10">
+        </label>
+      </section>
+
+      <section>
+        <h3>Works lists</h3>
+        <label class="check"><input type="checkbox" data-k="tags.showRatingTags"> Show rating as a tag</label>
+        <label class="check"><input type="checkbox" data-k="tags.showCatTags"> Show category as a tag</label>
+        <label class="check"><input type="checkbox" data-k="tags.showWIPTags"> Show complete / WIP as a tag</label>
+        <label class="check"><input type="checkbox" data-k="listFiltering.onlyGeneralTeen"> Only show General and Teen works</label>
+        <label class="check"><input type="checkbox" data-k="listFiltering.hideFilteredWorks"> Hide filtered works completely</label>
+        <h4>Hidden tags, authors, works and series</h4>
+        <p class="muted small">Right-click any link on AO3 → “Hide works”.</p>
+        <ul class="chips" id="filters"></ul>
+      </section>
+
+      <section>
+        <h3>Unit conversion</h3>
+        <p class="muted small">Click a measurement in a story to convert it.</p>
+        <div class="grid2">
+          <label>Temperature <select data-k="unitConv.temp"></select></label>
+          <label>Distance <select data-k="unitConv.dist"></select></label>
+          <label>Volume <select data-k="unitConv.volume"></select></label>
+          <label>Weight <select data-k="unitConv.weight"></select></label>
+        </div>
+      </section>
+
+      <section>
+        <h3>Backup</h3>
+        <div class="row"><button id="export">Export…</button><button id="import">Import…</button></div>
+        <p class="small" id="backup-out"></p>
+      </section>
+
+      <section>
+        <h3>Keyboard shortcuts</h3>
+        <dl class="keys">
+          <dt>Ctrl+J</dt><dd>Continue where you left off</dd>
+          <dt>Ctrl+D</dt><dd>Add / remove reading list</dd>
+          <dt>Ctrl+B</dt><dd>Show / hide reading list</dd>
+          <dt>Ctrl+Shift+← / →</dt><dd>Previous / next chapter</dd>
+          <dt>Ctrl+= / Ctrl+− / Ctrl+0</dt><dd>Text size</dd>
+          <dt>Ctrl+L</dt><dd>Address bar</dd>
+        </dl>
+      </section>
+
+      <section>
+        <p class="muted small">Archive Track Reader <span id="version"></span>. An unofficial reader; not affiliated with the Archive of Our Own or the OTW. Licensed under Apache 2.0.</p>
+      </section>
+    </div>
+  </aside>
+  <div id="toast" hidden></div>
+  <script src="ui.js"></script>
+</body>
+</html>

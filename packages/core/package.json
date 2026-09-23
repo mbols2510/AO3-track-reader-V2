@@ -1,0 +1,14 @@
+{
+  "name": "@ao3track/core",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./parse": "./src/parse.ts",
+    "./legacydb": "./src/legacydb.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
+}

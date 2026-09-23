@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node", "chrome"],
+    "paths": {
+      "@ao3track/core": ["./packages/core/src/index.ts"],
+      "@ao3track/core/*": ["./packages/core/src/*.ts"],
+      "@ao3track/content": ["./packages/content/src/index.ts"]
+    }
+  },
+  "include": ["./packages/*/src/**/*.ts", "services/*/src/**/*.ts", "apps/*/src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["./packages/content/src/unitconv.ts"]
+}

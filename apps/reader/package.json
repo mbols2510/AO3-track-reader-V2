@@ -1,0 +1,23 @@
+{
+  "name": "archive-track-reader",
+  "productName": "Archive Track Reader",
+  "version": "2.0.0",
+  "description": "Desktop reader for Archive of Our Own with location tracking, reading list and self-hosted sync",
+  "author": "Ao3Track contributors",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "dist/main.cjs",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "npm run build && electron .",
+    "dist:win": "node build.mjs && node package-win.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@ao3track/core": "*",
+    "@ao3track/content": "*",
+    "electron": "^44.4.5",
+    "@electron/packager": "^20.3.0"
+  }
+}

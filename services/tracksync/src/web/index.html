@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Ao3Track Sync</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true">📚</span><div><strong>Ao3Track Sync</strong><small id="server-line">Self-hosted reading sync</small></div></div>
+    <div id="who" class="who" hidden><span id="who-name"></span><button class="ghost" id="logout">Sign out</button></div>
+  </header>
+
+  <main>
+    <!-- Signed out -->
+    <section id="view-auth" class="auth" hidden>
+      <div class="card narrow">
+        <div class="tabs" role="tablist">
+          <button role="tab" class="tab active" data-tab="login">Sign in</button>
+          <button role="tab" class="tab" data-tab="create" id="tab-create">Create account</button>
+        </div>
+        <form id="form-login" class="stack">
+          <label>Username <input name="username" autocomplete="username" required></label>
+          <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+          <p class="err" data-for="username"></p><p class="err" data-for="password"></p>
+          <button class="primary" type="submit">Sign in</button>
+        </form>
+        <form id="form-create" class="stack" hidden>
+          <label>Username <input name="username" autocomplete="username" required></label>
+          <label>Email <span class="muted">(optional)</span> <input name="email" type="email" autocomplete="email"></label>
+          <label>Password <input name="password" type="password" autocomplete="new-password" minlength="6" required></label>
+          <p class="err" data-for="username"></p><p class="err" data-for="email"></p><p class="err" data-for="password"></p>
+          <button class="primary" type="submit">Create account</button>
+          <p class="hint">Tip: use the same username you had on the original Archive Track Reader service, then import your data below.</p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Signed in -->
+    <section id="view-dash" hidden>
+      <div class="stats">
+        <div class="stat"><span id="s-works">–</span><small>Works tracked</small></div>
+        <div class="stat"><span id="s-rl">–</span><small>In reading list</small></div>
+        <div class="stat"><span id="s-lf">–</span><small>List filters</small></div>
+        <div class="stat"><span id="s-last">–</span><small>Last reading activity</small></div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h2>Connect your apps</h2>
+          <p>Point the desktop reader and browser extension at this server:</p>
+          <div class="copy"><code id="api-url"></code><button class="ghost" id="copy-api">Copy</button></div>
+          <p class="hint">Sign in with this account in each app. Every device gets its own token, and changing your password signs all of them out.</p>
+        </article>
+
+        <article class="card accent">
+          <h2>Bring your data over</h2>
+          <p>Copy everything from your account on the <strong>original</strong> Archive Track Reader cloud service. Nothing is changed or deleted there, and it's safe to run more than once.</p>
+          <form id="form-migrate" class="stack">
+            <div class="row">
+              <label>Old username <input name="username" required autocomplete="off"></label>
+              <label>Old password <input name="password" type="password" required autocomplete="off"></label>
+            </div>
+            <details><summary>Advanced</summary>
+              <label>Old service API URL <input name="baseUrl" id="legacy-url" placeholder="https://wenchy.net/ao3track/api"></label>
+            </details>
+            <button class="primary" type="submit">Migrate from original service</button>
+            <output id="migrate-out" class="out"></output>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Import the old app's database</h2>
+          <p>If the original service is unreachable, import straight from the Windows app's local file:</p>
+          <p class="path"><code>%LOCALAPPDATA%\Packages\&lt;Archive Track Reader&gt;\LocalState\Ao3TrackSQLite.db3</code></p>
+          <form id="form-legacydb" class="stack">
+            <input type="file" name="file" accept=".db3,.db,.sqlite" required>
+            <button type="submit">Import database file</button>
+            <output id="legacydb-out" class="out"></output>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Backup</h2>
+          <p>Download everything as JSON, or restore from a previous backup (merges; never removes anything).</p>
+          <div class="row">
+            <button id="export">Download backup</button>
+            <label class="file-btn">Restore from backup<input type="file" id="import-file" accept=".json" hidden></label>
+          </div>
+          <output id="import-out" class="out"></output>
+        </article>
+
+        <article class="card">
+          <h2>Change password</h2>
+          <form id="form-pw" class="stack">
+            <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
+            <label>New password <input name="password" type="password" autocomplete="new-password" minlength="6" required></label>
+            <p class="err" data-for="current"></p><p class="err" data-for="password"></p>
+            <button type="submit">Change password</button>
+            <output id="pw-out" class="out"></output>
+          </form>
+        </article>
+
+        <article class="card wide">
+          <div class="card-head"><h2>Reading list</h2><input id="rl-filter" type="search" placeholder="Filter…"></div>
+          <ul id="rl" class="rl"></ul>
+        </article>
+      </div>
+    </section>
+  </main>
+  <footer>Ao3Track is an unofficial tool and is not affiliated with the Archive of Our Own or the OTW.</footer>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

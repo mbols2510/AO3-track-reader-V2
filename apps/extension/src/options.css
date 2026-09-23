@@ -1,0 +1,27 @@
+:root { --bg:#f6f4f2; --surface:#fff; --surface-2:#f1eeeb; --text:#1d1b1a; --muted:#6b6560; --border:#e3ded9; --accent:#a4161a; --on-accent:#fff; --err:#b3261e;
+  font: 14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161413; --surface:#1f1c1b; --surface-2:#2a2624; --text:#efeae6; --muted:#a39b94; --border:#36302d; --accent:#e5484d; --on-accent:#1a0707; --err:#ff6b6b; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); min-width: 380px; }
+body.popup main { grid-template-columns: 1fr; padding: 12px; } body.popup .full { display: none; }
+[hidden] { display: none !important; }
+header { display: flex; gap: 10px; align-items: center; padding: 12px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+header .logo { font-size: 24px; } header small { display: block; color: var(--muted); font-size: 12px; } header div { flex: 1; }
+main { max-width: 900px; margin: 0 auto; padding: 20px; display: grid; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+h2 { margin: 0 0 10px; font-size: 16px; } h3 { font-size: 14px; margin: 16px 0 8px; }
+.stack { display: flex; flex-direction: column; gap: 10px; } .row { display: flex; gap: 10px; } .row > * { flex: 1; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 16px; }
+label { display: flex; flex-direction: column; gap: 4px; font-weight: 550; font-size: 13px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }
+input:not([type=checkbox]), select { font: inherit; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.ghost { background: transparent; border-color: transparent; color: var(--accent); }
+.muted { color: var(--muted); } .small { font-size: 12px; } .err { color: var(--err); margin: 0; } .err:empty { display: none; }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; }
+.chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 4px 3px 12px; display: flex; align-items: center; gap: 4px; }
+.chips button { border: 0; background: none; padding: 0 6px; color: var(--muted); }
+.chips .empty { background: none; border: 0; color: var(--muted); padding: 0; }

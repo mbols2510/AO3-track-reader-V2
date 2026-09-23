@@ -1,0 +1,19 @@
+# Public HTTPS front door. Caddy gets and renews Let's Encrypt certificates automatically.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SYNC_DOMAIN} {
+	encode zstd gzip
+	# Container-to-container endpoint: never needed from outside.
+	respond /internal/* 404
+	reverse_proxy tracksync:8080
+	header Strict-Transport-Security "max-age=31536000"
+}
+
+{$TRACKER_DOMAIN} {
+	encode zstd gzip
+	# /api/* requires TRACKER_API_KEY (enforced by the tracker itself).
+	reverse_proxy tracker:8081
+	header Strict-Transport-Security "max-age=31536000"
+}

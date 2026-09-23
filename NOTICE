@@ -1,0 +1,10 @@
+Ao3Track 2
+Copyright 2026 Ao3Track contributors
+
+This project is a rewrite of Ao3-Tracker (https://github.com/wench/Ao3-Tracker),
+Copyright 2017 Alexis Ryan, licensed under the Apache License, Version 2.0.
+The unit-conversion module (packages/content/src/unitconv.ts) and the app icon
+artwork are derived from that project.
+
+Ao3Track is an unofficial tool and is not affiliated with the Archive of Our Own
+or the Organization for Transformative Works.

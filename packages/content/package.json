@@ -1,0 +1,9 @@
+{
+  "name": "@ao3track/content",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Page script injected into archiveofourown.org by the extension and the desktop reader",
+  "exports": { ".": "./src/index.ts", "./css": "./src/tracker.css" },
+  "dependencies": { "@ao3track/core": "*" }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "ao3track",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Ao3Track revived: sync server, AO3 tracker gateway, browser extension and desktop reader",
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/content",
+    "services/tracksync",
+    "services/tracker",
+    "apps/extension",
+    "apps/reader"
+  ],
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --test-force-exit --test-timeout=60000 --experimental-transform-types --no-warnings 'tests/**/*.test.ts'",
+    "build": "npm run build -ws --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "esbuild": "^0.28.2",
+    "@types/node": "^24.9.0"
+  }
+}

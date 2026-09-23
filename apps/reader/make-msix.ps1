@@ -40,10 +40,17 @@ Copy-Item "$here/../../assets/msix/*.png" "$stage/Assets/"
 </Package>
 "@ | Set-Content -Encoding utf8 "$stage/AppxManifest.xml"
 
-$sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+# Newest SDK that actually ships makeappx.exe. (Sort on the version folder: every leaf is named "x64".)
+$makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
+  Sort-Object { try { [version]$_.Directory.Parent.Name } catch { [version]"0.0" } } -Descending | Select-Object -First 1
+if (-not $makeappx) { throw "makeappx.exe not found; install the Windows 10/11 SDK" }
+$bin = $makeappx.DirectoryName
+Write-Host "Using Windows SDK tools from $bin"
 $msix = "$here/out/ArchiveTrackReader-$version-x64.msix"
-& "$($sdk.FullName)\makeappx.exe" pack /o /d $stage /p $msix
+& "$bin\makeappx.exe" pack /o /d $stage /p $msix
+if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
 if ($PfxPath) {
-  & "$($sdk.FullName)\signtool.exe" sign /fd SHA256 /f $PfxPath /p $PfxPassword /tr http://timestamp.digicert.com /td SHA256 $msix
+  & "$bin\signtool.exe" sign /fd SHA256 /f $PfxPath /p $PfxPassword /tr http://timestamp.digicert.com /td SHA256 $msix
+  if ($LASTEXITCODE -ne 0) { throw "signtool failed ($LASTEXITCODE)" }
 }
 Write-Host "Built $msix"

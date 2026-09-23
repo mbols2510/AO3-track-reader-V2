@@ -11,6 +11,8 @@ on:
 
 env:
   ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  # Don't attach Docker build-record files to the run's artifacts.
+  DOCKER_BUILD_RECORD_UPLOAD: 'false'
 
 jobs:
   test:
@@ -97,7 +99,10 @@ jobs:
     permissions: { contents: write }
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: artifacts }
+        with:
+          path: artifacts
+          # Only our build outputs, not the Docker build records.
+          pattern: windows-*
       - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

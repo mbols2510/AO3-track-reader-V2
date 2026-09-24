@@ -224,6 +224,7 @@ docker compose start tracksync
 | --- | --- | --- |
 | `docker compose up` stops with *Set INTERNAL_TOKEN in .env* | `.env` missing or the value is empty | Part 1, steps 3–4 |
 | Reader says *Couldn't reach the sync server* | Wrong address, or container down | Open the same address in a browser; run `docker compose ps` |
+| `unable to open database file` / `Cannot create or open the database` | Container can't write its data folder (usually a bind-mounted NAS folder) | Set `PUID`/`PGID` in `.env` to the folder owner's IDs (`id <user>` over SSH), then `docker compose up -d` |
 | Works at home, not on mobile data | Port forwarding or DNS | Part 5, Option A steps 2–3; confirm `nslookup sync.yourdomain.com` returns your public IP |
 | Works on mobile data, not at home | Router lacks NAT loopback | Add the `hosts` lines from Part 5 |
 | Caddy log shows certificate errors | Port 80 not reaching Caddy, or DNS not yet updated | Recheck forwarding; wait up to an hour for DNS, then restart Caddy |

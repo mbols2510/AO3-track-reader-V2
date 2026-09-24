@@ -2,13 +2,30 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+function openSqlite(path: string): DatabaseSync {
+  try {
+    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+    return new DatabaseSync(path);
+  } catch (err) {
+    const e = err as { code?: string; errcode?: number };
+    if (e.code === 'EACCES' || e.code === 'EPERM' || e.errcode === 14) {
+      const who = typeof process.getuid === 'function' ? ` (running as uid ${process.getuid()}, gid ${process.getgid?.()})` : '';
+      throw new Error(
+        `Cannot create or open the database at ${path}${who}. The folder isn't writable by this process. ` +
+          'In Docker, set PUID/PGID to the owner of the mounted data folder, or chown that folder to the uid shown here.',
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+}
+
 const SCHEMA_VERSION = 1;
 
 export type Db = DatabaseSync;
 
 export function openDb(path: string): Db {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
-  const db = new DatabaseSync(path);
+  const db = openSqlite(path);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

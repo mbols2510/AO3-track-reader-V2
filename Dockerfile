@@ -24,9 +24,13 @@ FROM node:24-alpine AS runtime
 ENV NODE_ENV=production \
     NODE_OPTIONS=--disable-warning=ExperimentalWarning
 WORKDIR /app
-RUN echo '{"type":"module"}' > package.json && mkdir -p /data && chown node:node /data
-USER node
+# su-exec lets the entrypoint drop root and run as PUID:PGID (see deploy/docker-entrypoint.sh).
+RUN apk add --no-cache su-exec \
+ && echo '{"type":"module"}' > package.json && mkdir -p /data && chown node:node /data
+COPY --chmod=755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+ENV PUID=1000 PGID=1000
 VOLUME /data
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # ---------- TrackSync: accounts + sync API + web dashboard ----------
 FROM runtime AS tracksync

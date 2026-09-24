@@ -3,12 +3,29 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { WorkMeta, SeriesMeta } from '@ao3track/core';
 
+function openSqlite(path: string): DatabaseSync {
+  try {
+    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+    return new DatabaseSync(path);
+  } catch (err) {
+    const e = err as { code?: string; errcode?: number };
+    if (e.code === 'EACCES' || e.code === 'EPERM' || e.errcode === 14) {
+      const who = typeof process.getuid === 'function' ? ` (running as uid ${process.getuid()}, gid ${process.getgid?.()})` : '';
+      throw new Error(
+        `Cannot create or open the database at ${path}${who}. The folder isn't writable by this process. ` +
+          'In Docker, set PUID/PGID to the owner of the mounted data folder, or chown that folder to the uid shown here.',
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+}
+
 /** SQLite cache of AO3 metadata. `missing` rows remember works AO3 didn't show us. */
 export class MetaCache {
   private db: DatabaseSync;
   constructor(path: string) {
-    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
-    this.db = new DatabaseSync(path);
+    this.db = openSqlite(path);
     this.db.exec(`
       PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS works (workid INTEGER PRIMARY KEY, status TEXT NOT NULL, json TEXT, fetched_at INTEGER NOT NULL);

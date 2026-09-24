@@ -12,6 +12,8 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKSYNC_PORT:-8080}:8080"
     environment:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN in .env (see .env.example)}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       TRACKER_URL: http://tracker:8081
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       PUBLIC_URL: ${TRACKSYNC_PUBLIC_URL:-http://localhost:8080}
@@ -29,6 +31,8 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKER_PORT:-8081}:8081"
     environment:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN in .env (see .env.example)}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       TRACKSYNC_URL: http://tracksync:8080
       # How gently to treat AO3 (defaults ≈ 10 requests/minute, one at a time).
       RATE_BURST: ${RATE_BURST:-3}

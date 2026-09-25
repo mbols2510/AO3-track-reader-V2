@@ -39,6 +39,7 @@ const ICONS: Record<string, string> = {
   cloud: '<path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 18z"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  chevron: '<path d="M9 6l6 6-6 6"/>',
 };
 for (const el of $$('[data-icon]')) el.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 24 24">${ICONS[el.dataset.icon!] ?? ''}</svg>`);
 
@@ -181,7 +182,19 @@ const search = $<HTMLInputElement>('#rl-search');
 search.addEventListener('input', () => renderList());
 for (const b of $$('#rl-filter button')) b.onclick = () => { void api.invoke('ui:prefs', { readingListFilter: b.dataset.v }); prefs.readingListFilter = b.dataset.v as Prefs['readingListFilter']; renderList(); };
 $<HTMLSelectElement>('#rl-sort').onchange = (e) => { const v = (e.target as HTMLSelectElement).value as Prefs['readingListSort']; prefs.readingListSort = v; void api.invoke('ui:prefs', { readingListSort: v }); renderList(); };
+$<HTMLSelectElement>('#rl-group').onchange = (e) => { const v = (e.target as HTMLSelectElement).value as Prefs['readingListGroup']; prefs.readingListGroup = v; void api.invoke('ui:prefs', { readingListGroup: v }); renderList(); };
 $('#rl-refresh').onclick = () => api.invoke('ui:readingList:refresh');
+$('#rl-collapse').onclick = () => {
+  const groups = lastGroups.map((g) => g.name);
+  const allClosed = groups.every((g) => prefs.collapsedGroups.includes(g));
+  setCollapsed(allClosed ? [] : groups);
+};
+
+function setCollapsed(names: string[]) {
+  prefs.collapsedGroups = [...new Set(names)];
+  void api.invoke('ui:prefs', { collapsedGroups: prefs.collapsedGroups });
+  renderList();
+}
 
 const parseDate = (s: string | null) => (s ? Date.parse(s) || 0 : 0);
 
@@ -194,7 +207,7 @@ function renderList() {
     if (prefs.readingListFilter === 'unread' && !(i.unread && i.unread > 0)) return false;
     if (prefs.readingListFilter === 'complete' && !i.complete) return false;
     if (prefs.readingListFilter === 'favourites' && !i.favourite) return false;
-    return !q || `${i.title} ${i.authors.join(' ')} ${i.fandoms.join(' ')}`.toLowerCase().includes(q);
+    return !q || `${i.title} ${i.authors.join(' ')} ${i.fandoms.join(' ')} ${i.detail}`.toLowerCase().includes(q);
   });
   const by: Record<Prefs['readingListSort'], (a: ReadingListItem, b: ReadingListItem) => number> = {
     unread: (a, b) => (b.unread ?? -1) - (a.unread ?? -1) || parseDate(b.updated) - parseDate(a.updated),
@@ -211,12 +224,74 @@ function renderList() {
 
   const ul = $('#rl-list');
   ul.replaceChildren();
+  const grouped = prefs.readingListGroup !== 'none';
+  $<HTMLSelectElement>('#rl-group').value = grouped ? 'fandom' : 'none';
+  $('#rl-collapse').hidden = !grouped || !list.length;
   if (!list.length) {
+    lastGroups = [];
     ul.append(h('li', { class: 'empty' }, items.length ? 'Nothing matches.' : 'Your reading list is empty.\nPress ☆ in the toolbar (or Ctrl+D) on any work, series or tag to add it.'));
     return;
   }
-  for (const i of list) ul.append(card(i));
+  if (!grouped) {
+    lastGroups = [];
+    for (const i of list) ul.append(card(i));
+    highlightCurrent();
+    return;
+  }
+  lastGroups = groupItems(list);
+  const collapsed = new Set(prefs.collapsedGroups);
+  const allClosed = lastGroups.every((g) => collapsed.has(g.name));
+  $('#rl-collapse').textContent = allClosed ? 'Expand all' : 'Collapse all';
+  for (const g of lastGroups) {
+    // While searching, show every match regardless of folded groups.
+    const open = !!q || !collapsed.has(g.name);
+    const unread = g.items.reduce((n, i) => n + (i.unread && i.kind !== 'other' ? i.unread : 0), 0);
+    const head = h('button', { class: 'group-head', title: open ? 'Collapse' : 'Expand' },
+      h('i', { class: 'chev' }),
+      h('span', { class: 'name', textContent: g.name, title: g.name } as never),
+      h('span', { class: 'n', textContent: String(g.items.length) }),
+      unread ? h('span', { class: 'tag new', textContent: `${unread} unread` }) : null,
+    );
+    head.querySelector('.chev')!.innerHTML = `<svg viewBox="0 0 24 24">${ICONS.chevron}</svg>`;
+    head.setAttribute('aria-expanded', String(open));
+    head.onclick = () => {
+      const next = new Set(prefs.collapsedGroups);
+      if (next.has(g.name)) next.delete(g.name); else next.add(g.name);
+      setCollapsed([...next]);
+    };
+    const li = h('li', { class: `rl-group${open ? '' : ' closed'}` }, head);
+    if (open) { const inner = h('ul', { class: 'group-items' }); for (const i of g.items) inner.append(card(i)); li.append(inner); }
+    ul.append(li);
+  }
   highlightCurrent();
+}
+
+// ---------------------------------------------------------------- grouping (like the original app: by fandom)
+const G_LISTINGS = 'Tags, listings & searches';
+const G_PENDING = 'Waiting for details';
+const G_MISSING = 'Unavailable on AO3';
+interface Group { name: string; items: ReadingListItem[] }
+let lastGroups: Group[] = [];
+
+function groupItems(list: ReadingListItem[]): Group[] {
+  // A tag listing named after a fandom that's already in the list joins that fandom's group.
+  const fandoms = new Map<string, string>();
+  for (const i of items) for (const f of i.fandoms.slice(0, 1)) fandoms.set(f.toLowerCase(), f);
+  const groupOf = (i: ReadingListItem) => {
+    if (i.kind === 'other') return fandoms.get(i.title.toLowerCase()) ?? G_LISTINGS;
+    if (i.fandoms[0]) return i.fandoms[0];
+    return i.missing ? G_MISSING : G_PENDING;
+  };
+  const map = new Map<string, ReadingListItem[]>();
+  for (const i of list) { const g = groupOf(i); if (!map.has(g)) map.set(g, []); map.get(g)!.push(i); }
+  const tail = [G_LISTINGS, G_PENDING, G_MISSING];
+  return [...map.entries()]
+    .map(([name, its]) => ({ name, items: its }))
+    .sort((a, b) => {
+      const ta = tail.indexOf(a.name), tb = tail.indexOf(b.name);
+      if (ta !== tb) return ta - tb; // fandoms (-1) first, then the fixed groups in order
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    });
 }
 
 function card(i: ReadingListItem) {
@@ -248,10 +323,10 @@ function card(i: ReadingListItem) {
   }
   act('Remove', () => { void api.invoke('ui:readingList:remove', i.key); toast('Removed from reading list'); });
 
-  const el = h('li', { class: 'card', tabIndex: 0, title: i.summary.slice(0, 400) },
+  const el = h('li', { class: 'card', tabIndex: 0, title: i.kind === 'other' ? i.url : i.summary.slice(0, 400) },
     fav,
     h('div', { class: 't' }, i.title),
-    h('div', { class: 'by' }, [i.authors.join(', '), i.fandoms.slice(0, 2).join(', ')].filter(Boolean).join(' · ') || (i.kind === 'other' ? i.url.replace(/^https?:\/\/archiveofourown\.org/, '') : i.kind === 'series' ? 'Series' : '')),
+    h('div', { class: 'by' }, i.kind === 'other' ? i.detail || (/\/tags\/|[?&]tag_id=/.test(i.key) ? 'All works' : '') : [i.authors.join(', '), i.fandoms.slice(0, 2).join(', ')].filter(Boolean).join(' · ') || (i.kind === 'series' ? 'Series' : '')),
     i.kind === 'work' && i.chaptersPublished ? h('div', { class: `bar${pct >= 100 ? ' full' : ''}` }, h('i', { style: `width:${pct}%` } as never)) : null,
     h('div', { class: 'meta' }, ...tags, i.updated ? h('span', { class: 'when' }, i.updated) : null),
     actions,
@@ -305,6 +380,7 @@ for (const b of $$('#theme button')) b.onclick = () => api.invoke('ui:prefs', { 
 const font = $<HTMLInputElement>('#font-size');
 font.oninput = () => { $('#font-val').textContent = `${font.value}%`; };
 font.onchange = () => api.invoke('ui:prefs', { fontSize: Number(font.value) });
+for (const b of $$('#font-scope button')) b.onclick = () => api.invoke('ui:prefs', { fontScope: b.dataset.v });
 const trackerUrl = $<HTMLInputElement>('#tracker-url');
 trackerUrl.onchange = () => api.invoke('ui:prefs', { trackerUrl: trackerUrl.value.trim() });
 const trackerKey = $<HTMLInputElement>('#tracker-key');
@@ -386,6 +462,7 @@ api.on('state', (st: { sync: any; settings: ReaderSettings; prefs: Prefs; filter
     if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
   }
   for (const b of $$('#theme button')) b.classList.toggle('on', b.dataset.v === prefs.theme);
+  for (const b of $$('#font-scope button')) b.classList.toggle('on', b.dataset.v === (prefs.fontScope ?? 'page'));
   font.value = String(prefs.fontSize);
   $('#font-val').textContent = `${prefs.fontSize}%`;
   if (document.activeElement !== trackerUrl) trackerUrl.value = prefs.trackerUrl;

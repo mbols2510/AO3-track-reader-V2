@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import {
-  Ao3Client, Ao3RateLimiter, RateLimitedError, chaptersFinished, workIdFromUrl, seriesIdFromUrl, browseUrl,
+  Ao3Client, Ao3RateLimiter, RateLimitedError, chaptersFinished, workIdFromUrl, seriesIdFromUrl, browseUrl, listingTitle, listingFilters,
   type FetchLike, type LimiterStatus, type SyncEngine, type WorkMeta,
 } from '@ao3track/core';
 import { lookupWorks, parseSeriesPage } from '@ao3track/core/parse';
@@ -34,6 +34,8 @@ export interface ReadingListItem {
   favourite: boolean;
   continueUrl: string;
   seriesWorks?: number;
+  /** Filters applied to a listing ("complete only · English"), '' otherwise. */
+  detail: string;
 }
 
 export interface RefreshStatus {
@@ -93,7 +95,7 @@ export class ReadingListService extends EventEmitter {
       const base = {
         key, url: link(key), addedAt, favourite: favs.has(key), summary: '', rating: null, words: null,
         authors: [] as string[], fandoms: [] as string[], chaptersPublished: null, chaptersTotal: null,
-        chaptersRead: 0, unread: null, complete: false, updated: null, fetchedAt: null, missing: false, continueUrl: link(key),
+        chaptersRead: 0, unread: null, complete: false, updated: null, fetchedAt: null, missing: false, continueUrl: link(key), detail: '',
       };
       if (workid) {
         const m: WorkMeta | undefined = this.meta.data.works[workid];
@@ -112,20 +114,22 @@ export class ReadingListService extends EventEmitter {
       if (seriesid) {
         const s = this.meta.data.series[seriesid];
         let unread: number | null = null;
+        // A series has no fandoms of its own: use its works', most common first.
+        const fandomCount = new Map<string, number>();
         if (s) {
           unread = 0;
           for (const w of s.workIds) {
             const m = this.meta.data.works[w];
             const saved = this.engine.getWork(w);
             if (m?.chaptersPublished != null) unread += Math.max(0, m.chaptersPublished - (saved ? chaptersFinished(saved) : 0));
+            for (const f of m?.fandoms ?? []) fandomCount.set(f, (fandomCount.get(f) ?? 0) + 1);
           }
         }
-        return { ...base, kind: 'series' as const, id: seriesid, title: s?.title ?? `Series ${seriesid}`, authors: s?.authors ?? [],
+        const fandoms = [...fandomCount.entries()].sort((a, b) => b[1] - a[1]).map(([f]) => f);
+        return { ...base, kind: 'series' as const, id: seriesid, title: s?.title ?? `Series ${seriesid}`, authors: s?.authors ?? [], fandoms,
           unread, complete: !!s?.complete, updated: s?.updated ?? null, fetchedAt: s?.fetchedAt ?? null, seriesWorks: s?.workIds.length };
       }
-      const path = key.replace(/^https?:\/\/archiveofourown\.org/, '');
-      const tag = path.match(/^\/tags\/([^/?]+)/);
-      return { ...base, kind: 'other' as const, id: null, title: tag ? decodeURIComponent(tag[1]).replace(/\*s\*/g, '/').replace(/\*a\*/g, '&').replace(/\*d\*/g, '.').replace(/\*q\*/g, '?').replace(/\*h\*/g, '#') : path };
+      return { ...base, kind: 'other' as const, id: null, title: listingTitle(key), detail: listingFilters(key) };
     });
   }
 

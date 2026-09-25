@@ -6,7 +6,7 @@ name: ao3track
 services:
   tracksync:
     build: { context: ., target: tracksync }
-    image: ao3track/tracksync:2.0.0
+    image: ao3track/tracksync:2.1.0
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKSYNC_PORT:-8080}:8080"
@@ -25,7 +25,7 @@ services:
 
   tracker:
     build: { context: ., target: tracker }
-    image: ao3track/tracker:2.0.0
+    image: ao3track/tracker:2.1.0
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKER_PORT:-8081}:8081"

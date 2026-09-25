@@ -191,7 +191,7 @@ export async function buildApp(db: Db, config: Config): Promise<FastifyInstance>
 
   // ---- v2: dashboard, export/import, migration ----------------------------
   app.get('/api/v2/info', async () => ({
-    name: 'Ao3Track TrackSync', version: '2.0.0', allowRegistration: config.allowRegistration,
+    name: 'Ao3Track TrackSync', version: '2.1.0', allowRegistration: config.allowRegistration,
     tracker: !!config.trackerUrl, legacyApiUrl: config.legacyApiUrl,
     apiUrl: config.publicUrl ? `${config.publicUrl}/api` : null,
   }));

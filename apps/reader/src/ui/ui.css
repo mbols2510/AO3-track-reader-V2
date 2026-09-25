@@ -129,6 +129,18 @@ input[type=checkbox], input[type=range] { accent-color: var(--accent); }
 
 .rl-list { list-style: none; margin: 0; padding: 2px 8px 16px; overflow-y: auto; flex: 1; }
 .rl-list .empty { color: var(--muted); padding: 40px 20px; text-align: center; }
+.rl-tools #rl-collapse { margin-left: auto; padding: 0 4px; }
+.rl-list .rl-group { list-style: none; }
+.rl-list .rl-group + .rl-group { margin-top: 2px; }
+.group-items { list-style: none; margin: 0 0 6px; padding: 0; }
+.group-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 7px; width: 100%; border: 0; background: var(--chrome); padding: 9px 8px 7px 4px; cursor: pointer; text-align: left; font-weight: 650; font-size: 12.5px; color: var(--text); border-bottom: 1px solid var(--border); }
+.group-head:hover .name { color: var(--accent); }
+.group-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.group-head .chev { display: inline-flex; width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); transition: transform .15s var(--ease); transform: rotate(90deg); }
+.rl-group.closed .group-head .chev { transform: none; }
+.group-head .chev svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.group-head .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-head .n { color: var(--muted); font-weight: 550; font-size: 11.5px; }
 .card { position: relative; padding: 11px 12px 10px; border-radius: var(--radius); cursor: pointer; transition: background .12s; border: 1px solid transparent; }
 .card:hover { background: var(--hover); }
 .card.current { background: var(--surface); border-color: var(--border); }

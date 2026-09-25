@@ -3,7 +3,7 @@
   "name": "Ao3 Tracker",
   "short_name": "Ao3Track",
   "description": "Remembers exactly where you stopped reading on AO3, shows unread chapters, and syncs with your Ao3Track server.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "background": { "service_worker": "background.js", "scripts": ["background.js"], "type": "module" },
   "content_scripts": [{

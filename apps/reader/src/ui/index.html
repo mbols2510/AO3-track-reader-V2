@@ -59,6 +59,11 @@
         <option value="added">Recently added</option>
         <option value="title">Title</option>
       </select>
+      <select id="rl-group" title="Group">
+        <option value="fandom">Group by fandom</option>
+        <option value="none">No grouping</option>
+      </select>
+      <button class="link small" id="rl-collapse" hidden>Collapse all</button>
     </div>
     <ul id="rl-list" class="rl-list"></ul>
   </aside>
@@ -123,9 +128,13 @@
           <button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button>
         </div>
         <label class="check"><input type="checkbox" data-k="override_site_theme"> Use AO3's dark “Reversi” skin in dark mode</label>
-        <label>Story text size <span class="muted" id="font-val"></span>
+        <label>Text size <span class="muted" id="font-val"></span>
           <input type="range" id="font-size" min="60" max="250" step="10">
         </label>
+        <div class="seg" id="font-scope" title="What the text-size buttons enlarge">
+          <button data-v="page">Whole page</button><button data-v="story">Story text only</button>
+        </div>
+        <p class="muted small">Whole page enlarges titles, tags, summaries and menus along with the story, like the original app.</p>
       </section>
 
       <section>

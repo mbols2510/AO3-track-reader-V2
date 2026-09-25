@@ -183,12 +183,20 @@ function wirePage(wc: WebContents) {
   });
 
   wc.on('before-input-event', (e, input) => { if (handleShortcut(input)) e.preventDefault(); });
+  wc.on('zoom-changed', (_e, dir) => void setFont(prefs().fontSize + (dir === 'in' ? 10 : -10)));
 }
 
+/**
+ * Text size. "page" zooms the whole AO3 page (titles, tags, menus, story text,
+ * like the original app); "story" enlarges only the story text and summaries.
+ */
 async function applyFontSize() {
   const wc = page.webContents;
-  if (fontCssKey) await wc.removeInsertedCSS(fontCssKey).catch(() => {});
-  fontCssKey = prefs().fontSize === 100 ? null : await wc.insertCSS(`#workskin, #chapters, .userstuff { font-size: ${prefs().fontSize}% !important; }`);
+  const size = prefs().fontSize;
+  const wholePage = prefs().fontScope !== 'story';
+  if (fontCssKey) { const k = fontCssKey; fontCssKey = null; await wc.removeInsertedCSS(k).catch(() => {}); }
+  wc.setZoomFactor(wholePage ? size / 100 : 1);
+  if (!wholePage && size !== 100) fontCssKey = await wc.insertCSS(`#workskin, #chapters, .userstuff { font-size: ${size}% !important; }`);
 }
 
 function toggleReadingList(url: string) {
@@ -338,10 +346,10 @@ function wireIpc() {
     Object.assign(prefs(), patch);
     store.save();
     if (patch.theme) applyTheme();
-    if (patch.fontSize) void applyFontSize();
+    if (patch.fontSize !== undefined || patch.fontScope !== undefined) void applyFontSize();
     if (trackerChanged) void rl.refresh(false);
     pushState();
-    if (patch.readingListSort || patch.readingListFilter) pushReadingList();
+    if (patch.readingListSort || patch.readingListFilter || patch.readingListGroup) pushReadingList();
   });
   ipcMain.handle('ui:settings', (_e, s: ReaderSettings) => {
     store.data.settings = s;

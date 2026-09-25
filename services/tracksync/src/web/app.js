@@ -1,4 +1,5 @@
 // Ao3Track Sync dashboard. Uses the same token auth as the apps, kept in localStorage.
+import { listingTitle } from './listing.js';
 const $ = (s, r = document) => r.querySelector(s);
 const API = new URL('api', location.href.replace(/[^/]*$/, '')).href.replace(/\/$/, '');
 const KEY = 'ao3track.dashboard.auth';
@@ -78,7 +79,7 @@ async function refreshStats() {
 let rlItems = [];
 async function refreshReadingList() {
   const rl = await call('GET', '/v2/reading-list');
-  rlItems = Object.entries(rl).sort((a, b) => b[1] - a[1]).map(([path, ts]) => ({ path, ts, title: null, meta: '' }));
+  rlItems = Object.entries(rl).sort((a, b) => b[1] - a[1]).map(([path, ts]) => ({ path, ts, title: /\/(works|series)\/\d+$/.test(path) ? null : listingTitle(path), meta: '' }));
   drawReadingList();
   const ids = rlItems.map((i) => i.path.match(/\/works\/(\d+)$/)?.[1]).filter(Boolean);
   if (!ids.length) return;

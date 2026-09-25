@@ -44,7 +44,7 @@ CMD ["node", "server.js"]
 FROM runtime AS tracker
 COPY --from=build --chown=node:node /src/services/tracker/dist ./
 # Serve the browser extension so it's easy to grab from any device on your network.
-COPY --from=build --chown=node:node /src/apps/extension/dist/ao3track-extension-2.0.0.zip ./downloads/
+COPY --from=build --chown=node:node /src/apps/extension/dist/ao3track-extension-*.zip ./downloads/
 ENV PORT=8081 DB_PATH=/data/tracker.db DOWNLOADS_DIR=/app/downloads
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -qO- http://127.0.0.1:8081/healthz >/dev/null || exit 1

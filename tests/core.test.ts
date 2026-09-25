@@ -157,3 +157,32 @@ test('imports the original Windows app database', () => {
   assert.deepEqual(x.favourites, ['http://archiveofourown.org/works/10']);
   assert.deepEqual(Object.keys(x.listFilters), ['Author Nope']);
 });
+
+test('listingTitle names tag listings, filtered fandom listings, searches and user pages', async () => {
+  const { listingTitle, listingFilters } = await import('../packages/core/src/ao3url.ts');
+  const cases: [string, string][] = [
+    ['http://archiveofourown.org/tags/Bugs%20*a*%20Insects/works?commit=Sort+and+Filter&include_work_search%5Bfandom_ids%5D%5B%5D=2692&work_search%5Blanguage_id%5D=en', 'Bugs & Insects'],
+    // AO3's "Sort and Filter" on a fandom page redirects to /works?...&tag_id=<fandom> (issue #2)
+    ['http://archiveofourown.org/works?work_search%5Bsort_column%5D=revised_at&work_search%5Bother_tag_names%5D=&work_search%5Bcomplete%5D=T&commit=Sort+and+Filter&tag_id=Original+Work', 'Original Work'],
+    ['http://archiveofourown.org/tags/Harry%20Potter%20-%20J*d*%20K*d*%20Rowling', 'Harry Potter - J. K. Rowling'],
+    ['http://archiveofourown.org/tags/Fluff/bookmarks', 'Fluff (bookmarks)'],
+    ['http://archiveofourown.org/works/search?work_search%5Bquery%5D=dragons&work_search%5Bfandom_names%5D=Harry+Potter', 'Search: dragons, Harry Potter'],
+    ['http://archiveofourown.org/users/someone/pseuds/alt/works', 'Works by alt (someone)'],
+    ['http://archiveofourown.org/users/someone/bookmarks', 'Bookmarks by someone'],
+    ['http://archiveofourown.org/works?user_id=someone', 'Works by someone'],
+    ['http://archiveofourown.org/collections/yuletide/works', 'Collection: yuletide'],
+    ['http://archiveofourown.org/works', 'All works'],
+  ];
+  const { listingTitle: webTitle } = await import('../services/tracksync/src/web/listing.js');
+  for (const [url, want] of cases) {
+    assert.equal(listingTitle(url), want, url);
+    assert.equal(webTitle(url), want, `dashboard copy: ${url}`);
+  }
+  assert.equal(listingFilters(cases[1][0]), 'complete only');
+  assert.equal(listingFilters(cases[0][0]), '1 included tag · English');
+  assert.equal(
+    listingFilters('http://archiveofourown.org/works?tag_id=Marvel&work_search%5Bother_tag_names%5D=Fluff%2CAngst&work_search%5Bexcluded_tag_names%5D=Death&work_search%5Bwords_from%5D=10000&work_search%5Bsort_column%5D=kudos_count'),
+    'with Fluff, Angst · excluding Death · 10000+ words · sorted by kudos',
+  );
+  assert.equal(listingFilters(cases[4][0]), '');
+});

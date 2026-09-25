@@ -2,7 +2,8 @@ import { defaultReaderSettings, emptySyncState, type ReaderSettings, type SyncSt
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
-  fontSize: number;              // percent, applied to story text
+  fontSize: number;              // percent
+  fontScope: 'page' | 'story';   // enlarge the whole AO3 page (zoom) or only the story text
   trackerUrl: string;            // optional tracker service, e.g. http://localhost:8081
   trackerKey: string;            // tracker API_KEY, needed when the tracker is exposed publicly
   refreshHours: number;          // background reading-list refresh (direct mode); 0 = off
@@ -11,6 +12,8 @@ export interface Prefs {
   favourites: string[];
   readingListSort: 'unread' | 'updated' | 'added' | 'title';
   readingListFilter: 'all' | 'unread' | 'complete' | 'favourites';
+  readingListGroup: 'fandom' | 'none';
+  collapsedGroups: string[];     // reading-list groups the user folded away
   bounds: { x?: number; y?: number; width: number; height: number; maximized?: boolean };
   paneOpen: boolean;
 }
@@ -27,9 +30,9 @@ export const defaultState = (): AppState => ({
   sync: emptySyncState(),
   settings: defaultReaderSettings(),
   prefs: {
-    theme: 'system', fontSize: 100, trackerUrl: '', trackerKey: '', refreshHours: 6,
+    theme: 'system', fontSize: 100, fontScope: 'page', trackerUrl: '', trackerKey: '', refreshHours: 6,
     homeUrl: 'https://archiveofourown.org/', lastUrl: null, favourites: [],
-    readingListSort: 'unread', readingListFilter: 'all',
+    readingListSort: 'unread', readingListFilter: 'all', readingListGroup: 'fandom', collapsedGroups: [],
     bounds: { width: 1280, height: 860 }, paneOpen: true,
   },
 });

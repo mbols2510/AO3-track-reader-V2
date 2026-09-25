@@ -50,7 +50,7 @@ The desktop reader can also migrate directly (Settings → *Bring over data from
 
 ### 3. Install the desktop reader
 
-Run `ArchiveTrackReader-2.0.0-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`) so reading-list updates come from the container instead of the reader.
+Run `ArchiveTrackReader-2.1.0-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`) so reading-list updates come from the container instead of the reader.
 
 **About "updating" the Store app:** the old app from the Microsoft Store can't be upgraded in place — its package identity belongs to the original publisher's Store certificate, and Windows only lets that publisher update it. The new reader installs alongside it, with its own Start Menu entry. Migrate your data (step 2), check everything's there, then uninstall the old app from *Settings → Apps*. Future versions of the new reader *do* upgrade in place: the MSI has a fixed upgrade code, so installing 2.1 replaces 2.0.
 
@@ -58,7 +58,7 @@ The MSI isn't code-signed, so SmartScreen will show "Windows protected your PC" 
 
 ### 4. Install the browser extension (optional)
 
-Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.0.0.zip**, unzip it, then:
+Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.1.0.zip**, unzip it, then:
 
 - **Chrome / Edge:** `chrome://extensions` → enable *Developer mode* → *Load unpacked* → pick the folder.
 - **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → pick `manifest.json`. (Permanent installation in Firefox requires signing it through addons.mozilla.org.)
@@ -69,10 +69,10 @@ Open the extension's options, enter your server and sign in. If you were using t
 
 - **Reading position** is saved as you scroll, down to the paragraph. Press **Ctrl+J** (reader) or **Continue reading** (extension) to jump back to where you stopped, on any device.
 - **Works lists** show `N unread`, `Read` and `Reading list` badges, plus how many chapters you've read in the chapter count.
-- **Reading list** (reader sidebar, **Ctrl+B**): works, series and tag/search pages. Shows unread chapters, progress, and whether a work is complete. Star entries to pin them. Add with **Ctrl+D** or the ☆ button; right-click any AO3 link for more.
+- **Reading list** (reader sidebar, **Ctrl+B**): works, series and tag/search pages. Shows unread chapters, progress, and whether a work is complete. Grouped by fandom like the original app (fold groups away, or switch to *No grouping*); filtered fandom listings and searches show readable names. Star entries to pin them. Add with **Ctrl+D** or the ☆ button; right-click any AO3 link for more.
 - **Hide works** by tag, author, work or series: right-click a link → *Hide works…*. Also: *Only show General / Teen works*.
 - **Unit conversion**: click a measurement ("72 degrees Fahrenheit") in a story to convert it.
-- Other shortcuts: **Ctrl+Shift+←/→** previous/next chapter, **Ctrl+=/−/0** text size, **Alt+←/→** back/forward, **Ctrl+L** address bar (type a search, a link, or just a work number).
+- Other shortcuts: **Ctrl+Shift+←/→** previous/next chapter, **Ctrl+=/−/0** text size (whole page by default, or story text only — see Settings → Appearance), **Alt+←/→** back/forward, **Ctrl+L** address bar (type a search, a link, or just a work number).
 
 ## How AO3's rate limiting is respected
 

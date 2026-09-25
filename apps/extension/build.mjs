@@ -21,5 +21,7 @@ await cp(resolve(here, 'src/options.html'), resolve(out, 'options.html'));
 await cp(resolve(here, 'src/options.css'), resolve(out, 'options.css'));
 await cp(resolve(here, 'src/icons'), resolve(out, 'icons'), { recursive: true });
 await cp(resolve(here, '../../packages/content/src/tracker.css'), resolve(out, 'tracker.css'));
-execFileSync('zip', ['-qr', '../ao3track-extension-2.0.0.zip', '.'], { cwd: out });
-console.log('built apps/extension/dist/ao3track-extension-2.0.0.zip');
+// Name the zip after the manifest version so releases never ship a stale file name.
+const { version } = JSON.parse(await readFile(resolve(here, 'src/manifest.json'), 'utf8'));
+execFileSync('zip', ['-qr', `../ao3track-extension-${version}.zip`, '.'], { cwd: out });
+console.log(`built apps/extension/dist/ao3track-extension-${version}.zip`);

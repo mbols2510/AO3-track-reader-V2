@@ -164,6 +164,61 @@ try {
   const status = await app.evaluate(() => (globalThis as any).process.pid);
   void status;
 
+  // Issue #2: a filtered fandom listing (AO3 redirects "Sort and Filter" to /works?...&tag_id=) gets a real name
+  await ui.fill('#url', 'http://archiveofourown.org/works?work_search%5Bsort_column%5D=revised_at&work_search%5Bcomplete%5D=T&commit=Sort+and+Filter&tag_id=Original+Work');
+  await ui.press('#url', 'Enter');
+  await page.waitForSelector('#work_123');
+  await ui.click('#btn-rl');
+  await ui.waitForFunction(() => [...document.querySelectorAll('.card .t')].some((e) => e.textContent === 'Original Work'));
+  const listingCard = await ui.$eval('.card[data-key*="tag_id"]', (c: HTMLElement) => c.textContent);
+  assert.ok(listingCard.includes('complete only'), listingCard);
+  step('filtered fandom listing is named "Original Work" (complete only), not shown as a URL');
+
+  // Issue #3: reading list grouped by fandom, groups fold away and remember it
+  const groups = await ui.$$eval('.group-head .name', (els: HTMLElement[]) => els.map((e) => e.textContent));
+  assert.ok(groups.includes('Tags, listings & searches'), JSON.stringify(groups));
+  assert.ok(groups.some((g: string) => g !== 'Tags, listings & searches' && g !== 'Waiting for details'), `a fandom group: ${JSON.stringify(groups)}`);
+  const first = groups[0];
+  const before = await ui.$$eval('.card', (cs: HTMLElement[]) => cs.length);
+  await ui.click(`.group-head:has(.name:text-is("${first}"))`);
+  await ui.waitForFunction((n: number) => document.querySelectorAll('.card').length < n, before);
+  await ui.click(`.group-head:has(.name:text-is("${first}"))`);
+  await ui.waitForFunction((n: number) => document.querySelectorAll('.card').length === n, before);
+  await ui.selectOption('#rl-group', 'none');
+  await ui.waitForFunction(() => !document.querySelector('.group-head'));
+  await ui.selectOption('#rl-group', 'fandom');
+  await ui.waitForSelector('.group-head');
+  step(`reading list grouped: ${groups.join(' | ')} (collapse/expand and "No grouping" work)`);
+
+  // Issue #1: text size enlarges the whole page, not just the story text
+  await ui.fill('#url', 'http://archiveofourown.org/works/123/chapters/2002');
+  await ui.press('#url', 'Enter');
+  await page.waitForSelector('#chapters .userstuff p');
+  const titleSize = () => page.evaluate(() => document.querySelector('h2.title')!.getBoundingClientRect().height * devicePixelRatio);
+  const baseTitle = await titleSize();
+  await ui.click('#btn-font-up');
+  await ui.click('#btn-font-up');
+  await page.waitForFunction(() => Math.abs(devicePixelRatio - 1.2) < 0.01, null, { timeout: 5000 });
+  assert.ok((await titleSize()) > baseTitle * 1.1, 'work title got bigger too');
+  await page.reload();
+  await page.waitForSelector('#chapters .userstuff p');
+  await page.waitForFunction(() => Math.abs(devicePixelRatio - 1.2) < 0.01, null, { timeout: 5000 });
+  step('text size 120% zooms the whole page (title, tags, story) and survives reloads');
+  await ui.click('#btn-settings');
+  await ui.click('#font-scope button[data-v="story"]');
+  await page.waitForFunction(() => devicePixelRatio === 1 && parseFloat(getComputedStyle(document.querySelector('#chapters')!).fontSize) > 17, null, { timeout: 5000 });
+  step('"Story text only" restores the 2.0 behaviour');
+  await ui.click('#font-scope button[data-v="page"]');
+  // Real keyboard input (Playwright's synthetic keys bypass Electron's before-input-event).
+  await app.evaluate(({ BaseWindow }: any) => {
+    const wc = BaseWindow.getAllWindows()[0].contentView.children[1].webContents;
+    wc.focus();
+    wc.sendInputEvent({ type: 'keyDown', keyCode: '0', modifiers: ['control'] });
+  });
+  await page.waitForFunction(() => devicePixelRatio === 1, null, { timeout: 5000 });
+  await ui.click('#settings-close');
+  step('Ctrl+0 resets the text size');
+
   // Dark mode
   await ui.click('#btn-settings');
   await ui.click('#theme button[data-v="dark"]');

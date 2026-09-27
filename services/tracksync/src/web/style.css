@@ -91,6 +91,7 @@ button.ghost { background: transparent; border-color: transparent; color: var(--
 .rl .m { color: var(--muted); font-size: 13px; }
 .rl .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .empty { color: var(--muted); padding: 12px 4px; }
+.rl li.empty.error { color: var(--err); align-items: center; }
 .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
 label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
 .rl.selectable li { align-items: center; justify-content: flex-start; }

@@ -121,7 +121,20 @@ let works = [];
 const selected = new Set();
 const SHOW = 500;
 async function refreshWorks() {
-  const list = await call('GET', '/v2/works');
+  let list;
+  try {
+    list = await call('GET', '/v2/works');
+    if (!Array.isArray(list)) throw new Error('The server sent an unexpected answer.');
+  } catch (err) {
+    // Say so, rather than leaving an empty list next to a non-zero counter.
+    const ul = $('#works');
+    const li = Object.assign(document.createElement('li'), { className: 'empty error' });
+    const retry = Object.assign(document.createElement('button'), { className: 'ghost', textContent: 'Try again' });
+    retry.addEventListener('click', () => { li.textContent = 'Loading…'; refreshWorks().catch(() => {}); });
+    li.append(`Couldn't load your tracked works: ${err.message} `, retry);
+    ul.replaceChildren(li);
+    throw err;
+  }
   const known = new Map(works.map((w) => [w.id, w]));
   works = list.sort((a, b) => b.timestamp - a.timestamp)
     .map((w) => ({ ...w, title: known.get(w.id)?.title ?? null, meta: known.get(w.id)?.meta ?? '', total: known.get(w.id)?.total }));

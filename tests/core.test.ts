@@ -164,7 +164,7 @@ test('imports the original Windows app database', () => {
     CREATE TABLE ReadingList (Uri TEXT PRIMARY KEY, Timestamp INTEGER, Unread INTEGER, Favourite INTEGER, Model TEXT);
     CREATE TABLE ListFilter (data TEXT PRIMARY KEY, timestamp INTEGER);
     CREATE TABLE Variable (name TEXT PRIMARY KEY, value TEXT);
-    INSERT INTO Work VALUES (10, 100, 2, 1500000000000, NULL, 0), (11, 0, 1, 1500000000001, 3000000000, 1);
+    INSERT INTO Work VALUES (10, 100, 2, 1500000000000, NULL, 0), (11, 0, 1, 1500000000001, 3000000000, 1), (12, 120, 1, 1500000000002, 0, 637000000000000000);
     INSERT INTO ReadingList VALUES ('http://archiveofourown.org/works/10', 1500000000000, 3, 1, '{}');
     INSERT INTO ListFilter VALUES ('Author Nope', 1500000000000);
     INSERT INTO Variable VALUES ('authorization.username', 'erin');
@@ -174,6 +174,7 @@ test('imports the original Windows app database', () => {
   assert.equal(x.username, 'erin');
   assert.deepEqual(x.works['10'], { number: 2, chapterid: 100, location: null, timestamp: 1500000000000, seq: 0 });
   assert.equal(x.works['11'].location, 3000000000);
+  assert.ok(x.works['12'].seq > Number.MAX_SAFE_INTEGER, 'an out-of-range value no longer aborts the import');
   assert.deepEqual(Object.keys(x.readingList), ['http://archiveofourown.org/works/10']);
   assert.deepEqual(x.favourites, ['http://archiveofourown.org/works/10']);
   assert.deepEqual(Object.keys(x.listFilters), ['Author Nope']);

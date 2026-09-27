@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isNewerVersion as isNewer } from '@ao3track/core';
 import type { Prefs } from './state.ts';
+import { installScriptArgs } from './installscript.ts';
 
 export interface UpdateInfo { configured: boolean; error?: string | null; version?: string; name?: string; notes?: string; url?: string; files?: { name: string; size: number }[] }
 export type CheckResult =
@@ -50,7 +51,7 @@ export async function checkForUpdate(win: BaseWindow, prefs: () => Prefs, save: 
     type: 'info',
     title: 'Update available',
     message: `Archive Track Reader ${info.version} is available`,
-    detail: `You have ${current}.${notes ? `\n\nWhat's new:\n${notes}` : ''}\n\n${canInstall ? 'Installing closes the reader; start it again once the installer has finished. Your reading positions and settings are kept.' : 'Open the release page to download it.'}`,
+    detail: `You have ${current}.${notes ? `\n\nWhat's new:\n${notes}` : ''}\n\n${canInstall ? 'The reader closes while the update installs and opens again when it has finished. Your reading positions and settings are kept.' : 'Open the release page to download it.'}`,
     buttons: [canInstall ? 'Install now' : 'Open release page', 'Later', 'Skip this version'],
     defaultId: 0, cancelId: 1, noLink: true,
   });
@@ -68,8 +69,11 @@ export async function checkForUpdate(win: BaseWindow, prefs: () => Prefs, save: 
     await dialog.showMessageBox(win as Electron.BaseWindow, { type: 'error', title: 'Update failed', message: "Couldn't download the update", detail: (e as Error).message });
     return { state: 'error', error: (e as Error).message };
   }
-  // /passive: progress bar only. The MSI's fixed upgrade code replaces the current version in place.
-  spawn('msiexec.exe', ['/i', file, '/passive'], { detached: true, stdio: 'ignore' }).unref();
+  // A helper waits until the reader has fully exited (a running exe can't be replaced, #10),
+  // runs the MSI with a progress bar only, then starts the reader again. The MSI's fixed
+  // upgrade code replaces the current version in place.
+  const args = installScriptArgs({ msiPath: file, pid: process.pid, exePath: process.execPath, logPath: join(app.getPath('temp'), 'ArchiveTrackReader-update.log') });
+  spawn('powershell.exe', args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   setTimeout(() => app.quit(), 500);
   return { state: 'installing' };
 }

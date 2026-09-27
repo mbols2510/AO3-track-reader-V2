@@ -26,7 +26,7 @@ The diagram shows the finished setup. Caddy is a web server you'll add in Part 5
 What you need:
 
 - A PC or home server that stays on, with Docker installed (Docker Desktop on Windows is fine).
-- This repository (*Code → Download ZIP*, or `git clone`), plus `ArchiveTrackReader-2.2.0-x64.msi` and `ao3track-extension-2.2.0.zip` from the [Releases](https://github.com/mbols2510/AO3-track-reader-V2/releases) page.
+- This repository (*Code → Download ZIP*, or `git clone`), plus `ArchiveTrackReader-2.2.1-x64.msi` and `ao3track-extension-2.2.1.zip` from the [Releases](https://github.com/mbols2510/AO3-track-reader-V2/releases) page.
 - For remote access: your domain, access to its DNS settings, and access to your router's port-forwarding page.
 
 ## Part 1: Run the servers
@@ -55,7 +55,7 @@ The defaults in `.env` are safe to leave alone. The ones worth knowing:
 | --- | --- | --- |
 | `BIND_ADDRESS` | `127.0.0.1` | Set `0.0.0.0` to reach the servers from other devices on your home Wi-Fi |
 | `ALLOW_REGISTRATION` | `true` | Set `false` once your account exists (required before going public in Part 5) |
-| `AO3TRACK_VERSION` | `latest` | Pin a version (e.g. `2.2.0`) if you don't want to follow every release |
+| `AO3TRACK_VERSION` | `latest` | Pin a version (e.g. `2.2.1`) if you don't want to follow every release |
 | `REFRESH_INTERVAL_HOURS` | `6` | How often the tracker checks your reading list for new chapters (even while the reader is closed) |
 | `GITHUB_TOKEN` | empty | Set it so the desktop reader can tell you about new versions and install them (see below) |
 | `RATE_REFILL_SECONDS` | `12` | Seconds between AO3 requests; raising it is gentler, lowering it is not recommended |
@@ -90,7 +90,7 @@ From a terminal, the same imports work with the admin tool:
 
 The MSI installs the new reader for all users, with Start Menu and desktop shortcuts. It sits alongside the old Store app rather than replacing it.
 
-1. Double-click `ArchiveTrackReader-2.2.0-x64.msi`. The installer isn't code-signed, so Windows shows *Windows protected your PC*: click *More info*, then *Run anyway*. Approve the admin prompt.
+1. Double-click `ArchiveTrackReader-2.2.1-x64.msi`. The installer isn't code-signed, so Windows shows *Windows protected your PC*: click *More info*, then *Run anyway*. Approve the admin prompt.
 2. Launch *Archive Track Reader*. The Settings pane opens on first run.
 3. Under **Sync**, enter `http://localhost:8080` plus the account from Part 1, and click *Sign in*. Your migrated reading list fills the sidebar within a few seconds.
 4. Under **Tracker service**, enter `http://localhost:8081` and click *Test*. Leave *API key* empty for now; you'll fill it in Part 5.
@@ -104,7 +104,7 @@ Future versions of the new reader do upgrade in place: running a newer MSI repla
 
 ## Part 4: Install the browser extension (optional)
 
-The extension tracks your place when you read AO3 in a normal browser, and syncs with the reader. Download `ao3track-extension-2.2.0.zip` from the Releases page; your tracker also serves it at **http://localhost:8081/downloads/**.
+The extension tracks your place when you read AO3 in a normal browser, and syncs with the reader. Download `ao3track-extension-2.2.1.zip` from the Releases page; your tracker also serves it at **http://localhost:8081/downloads/**.
 
 1. Unzip it to a folder you'll keep, for example `C:\ao3track\extension`. The browser loads it from there, so don't delete it.
 2. Load it:

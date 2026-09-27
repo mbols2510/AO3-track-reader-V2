@@ -32,7 +32,9 @@ function dir(abs, depth = 1) {
       const cid = id('c', rel);
       componentRefs.push(cid);
       const isExe = rel === 'ArchiveTrackReader.exe';
-      xml += `${'  '.repeat(depth)}<Component Id="${cid}" Guid="${guid(rel)}" Win64="yes"><File Id="${isExe ? 'MainExe' : id('f', rel)}" Source="${esc(p)}" Name="${esc(name)}" KeyPath="yes"/></Component>\n`;
+      // wixl doesn't read version resources, so the exe would count as unversioned; give it its real version.
+      const ver = isExe ? ` DefaultVersion="${version}.0"` : '';
+      xml += `${'  '.repeat(depth)}<Component Id="${cid}" Guid="${guid(rel)}" Win64="yes"><File Id="${isExe ? 'MainExe' : id('f', rel)}" Source="${esc(p)}" Name="${esc(name)}" KeyPath="yes"${ver}/></Component>\n`;
     }
   }
   return xml;
@@ -54,6 +56,11 @@ const wxs = `<?xml version="1.0" encoding="utf-8"?>
     <InstallExecuteSequence>
       <RemoveExistingProducts After="InstallValidate"/>
     </InstallExecuteSequence>
+
+    <!-- Always write every file on install/upgrade. Windows otherwise decides per file, before the
+         old version is removed, whether a copy is "already there"; the removal then deleted files
+         (e.g. the exe) that were never put back (#10). Everything here is private to the app. -->
+    <Property Id="REINSTALLMODE" Value="amus"/>
 
     <Icon Id="AppIcon" SourceFile="${esc(resolve(here, '../../assets/icon.ico'))}"/>
     <Property Id="ARPPRODUCTICON" Value="AppIcon"/>

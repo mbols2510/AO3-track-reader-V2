@@ -313,7 +313,7 @@ try {
   const dlg = await app.evaluate(() => (globalThis as any).__dialogs[0]);
   assert.equal(dlg?.message, 'Archive Track Reader 9.9.0 is available', JSON.stringify(dlg));
   assert.deepEqual(dlg.buttons.slice(1), ['Later', 'Skip this version']);
-  assert.ok(dlg.detail.includes('You have 2.2.0') && dlg.detail.includes('Update checker'), dlg.detail);
+  assert.ok(dlg.detail.includes('You have 2.2.1') && dlg.detail.includes('Update checker'), dlg.detail);
   await ui.click('#settings-close');
   step(`update prompt: "${dlg.message}" [${dlg.buttons.join(' | ')}]`);
 

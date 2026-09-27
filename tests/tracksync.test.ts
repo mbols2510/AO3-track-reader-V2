@@ -139,3 +139,44 @@ test('internal endpoint exposes reading-list targets only with the token', async
   assert.ok(t.works.includes(111));
   assert.ok(t.series.includes(9));
 });
+
+test('dashboard Works tracked list: lists, deletes, and survives out-of-range values (#11)', async () => {
+  const c = new TrackSyncClient(revived.url);
+  const created = await c.create('dora', 'password1');
+  assert.ok('credential' in created);
+  const headers = { Authorization: authHeader({ username: 'dora', credential: created.credential }), 'Content-Type': 'application/json' };
+  const works: Record<string, { number: number; chapterid: number; location: number | null; timestamp: number; seq: number }> = {};
+  for (let i = 1; i <= 50; i++) works[i] = { number: i % 5 + 1, chapterid: i * 10, location: i % 2 ? null : 1234, timestamp: 1_700_000_000_000 + i, seq: 0 };
+  assert.deepEqual(await c.postValues(works), {});
+
+  const list = async () => {
+    const r = await fetch(`${revived.url}/v2/works`, { headers });
+    assert.equal(r.status, 200);
+    return (await r.json()) as { id: number; number: number; location: number | null; timestamp: number; seq: number }[];
+  };
+  assert.equal((await list()).length, 50);
+
+  // A row as the original service or an old backup could leave it: numbers beyond 2^53.
+  const { id: userid } = revived.db.prepare('SELECT id FROM users WHERE username = ?').get('dora') as { id: number };
+  revived.db.prepare('INSERT INTO works (userid, id, chapterid, number, timestamp, location, seq) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(userid, 999, 9990, 2, 1_700_000_000_999n, 5_000_000_000_000_000_000n, 637_000_000_000_000_000n);
+  const after = await list();
+  assert.equal(after.length, 51, 'one odd row must not empty the whole list');
+  const odd = after.find((w) => w.id === 999)!;
+  assert.equal(odd.seq, Number.MAX_SAFE_INTEGER);
+  assert.equal(odd.timestamp, 1_700_000_000_999);
+  const me = await (await fetch(`${revived.url}/v2/me`, { headers })).json();
+  assert.equal(me.works, 51);
+  // The apps' sync and the counter agree with the list.
+  assert.equal(Object.keys(await c.getValues(0)).length, 51);
+  // Posting a position for that work still works (it compares against the stored row).
+  await c.postValues({ 999: { number: 3, chapterid: 9991, location: null, timestamp: 1_800_000_000_000, seq: 0 } });
+
+  // New oversized values are clamped on the way in rather than stored as-is.
+  await c.postValues({ 1000: { number: 1, chapterid: 1, location: 0, timestamp: 1_700_000_001_000, seq: 9e18 } });
+  assert.equal((await list()).find((w) => w.id === 1000)!.seq, Number.MAX_SAFE_INTEGER);
+
+  const del = await fetch(`${revived.url}/v2/works/delete`, { method: 'POST', headers, body: JSON.stringify({ ids: [1, 2, 999] }) });
+  assert.deepEqual(await del.json(), { deleted: 3 });
+  assert.equal((await list()).length, 49);
+});

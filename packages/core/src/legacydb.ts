@@ -17,8 +17,12 @@ export function exportFromLegacyDb(path: string): AccountExport {
     if (!tables.has('Work')) throw new Error('This does not look like an Archive Track Reader database (no Work table).');
 
     const works: Record<string, Record<string, unknown>> = {};
-    for (const r of db.prepare('SELECT id, chapterid, number, timestamp, location, seq FROM Work').all() as Record<string, number | null>[]) {
-      works[String(r.id)] = { ...r };
+    // Read as BigInt so one out-of-range value can't abort the whole import; the server clamps it.
+    const q = db.prepare('SELECT id, chapterid, number, timestamp, location, seq FROM Work');
+    q.setReadBigInts(true);
+    for (const r of q.all() as Record<string, bigint | number | string | null>[]) {
+      const v = Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'bigint' ? Number(x) : x]));
+      works[String(v.id)] = v;
     }
     const readingList: Record<string, number> = {};
     const favourites: string[] = [];

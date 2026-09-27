@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.1 — 2026-09-27
+
+### Fixes
+- **Updating the reader no longer loses the program** ([#10](https://github.com/mbols2510/AO3-track-reader-V2/issues/10)). After installing an update, the reader sometimes couldn't start because `ArchiveTrackReader.exe` had disappeared, and you had to run the installer a second time. While removing the old version, Windows could delete files it had decided not to copy again, especially if the reader was still open. The installer now always writes every file of the app. *Install now* waits until the reader has fully closed, installs the update, then opens the reader again. If your current install is missing its .exe, installing 2.2.1 repairs it.
+- **The dashboard's *Works tracked* list shows your works again** ([#11](https://github.com/mbols2510/AO3-track-reader-V2/issues/11)). A single saved position with an unusually large number in it (these can come from data brought over from the original service or restored from a backup) made the whole list fail to load, while the counter above it still showed the right total. Such values are now read safely, and your saved data isn't changed. If the list ever can't load, it now says why and offers *Try again* instead of staying empty. The same values could also stop a new device's first sync, which works now too.
+- Importing the old Windows app's database no longer fails on such values either.
+
+### Upgrading
+- **Servers:** `docker compose pull && docker compose up -d` (add your usual `-f` files). Only the TrackSync container changed in a way you'll notice.
+- **Reader:** use *Settings → Check for updates* → *Install now*, or run `ArchiveTrackReader-2.2.1-x64.msi`. This is the first update that uses the fixed installer, so it also repairs an install that lost its .exe.
+- **Extension:** no changes that need action; reload it from `ao3track-extension-2.2.1.zip` if you like to stay current.
+
 ## 2.2.0 — 2026-09-27
 
 ### Enhancements

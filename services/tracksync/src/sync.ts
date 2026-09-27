@@ -14,10 +14,26 @@ const toWire = (r: WorkRow): StoredWorkChapter => ({
   chapterid: r.chapterid, number: r.number, location: r.location, timestamp: r.timestamp, seq: r.seq,
 });
 
+/** Largest whole number JavaScript (and so every app) can hold exactly. */
+const MAX = Number.MAX_SAFE_INTEGER;
+const clamp = (n: number) => Math.min(MAX, Math.max(-MAX, n));
+
 const int = (v: unknown, dflt = 0): number => {
-  const n = typeof v === 'string' ? Number(v) : (v as number);
-  return Number.isFinite(n) ? Math.trunc(n) : dflt;
+  const n = typeof v === 'string' || typeof v === 'bigint' ? Number(v) : (v as number);
+  return Number.isFinite(n) ? clamp(Math.trunc(n)) : dflt;
 };
+const loc = (v: unknown): number | null => (v === null || v === undefined ? null : int(v));
+
+/**
+ * A value read from the database. Rows written before 2.2.1 (e.g. brought over from the
+ * original service) can hold numbers too large for JavaScript; node:sqlite would throw on
+ * the whole query, so those are read as BigInt and clamped instead. Stored data is untouched.
+ */
+const num = (v: unknown): number => (typeof v === 'bigint' ? (v > BigInt(MAX) ? MAX : v < BigInt(-MAX) ? -MAX : Number(v)) : (v as number));
+const fromDb = (r: Record<string, unknown>): WorkRow => ({
+  id: num(r.id), chapterid: num(r.chapterid), number: num(r.number), timestamp: num(r.timestamp), seq: num(r.seq),
+  location: r.location === null || r.location === undefined ? null : typeof r.location === 'string' ? int(r.location) : num(r.location),
+});
 
 export class SyncStore {
   private s: Stmts;
@@ -25,12 +41,19 @@ export class SyncStore {
     this.s = new Stmts(db);
   }
 
+  /** A statement over works rows that can't be broken by one out-of-range value. */
+  private works(sql: string) {
+    const st = this.s.get(sql);
+    st.setReadBigInts(true);
+    return st;
+  }
+
   // ---- api/Values -------------------------------------------------------
 
   getWorks(userid: number, after = 0, onlyId?: number): Record<string, StoredWorkChapter> {
     const rows = (onlyId !== undefined
-      ? this.s.get('SELECT * FROM works WHERE userid = ? AND id = ? AND timestamp > ?').all(userid, onlyId, after)
-      : this.s.get('SELECT * FROM works WHERE userid = ? AND timestamp > ?').all(userid, after)) as unknown as WorkRow[];
+      ? this.works('SELECT * FROM works WHERE userid = ? AND id = ? AND timestamp > ?').all(userid, onlyId, after)
+      : this.works('SELECT * FROM works WHERE userid = ? AND timestamp > ?').all(userid, after)).map((r) => fromDb(r));
     const out: Record<string, StoredWorkChapter> = {};
     for (const r of rows) out[String(r.id)] = toWire(r);
     return out;
@@ -48,7 +71,8 @@ export class SyncStore {
           location: v.location === null || v.location === undefined ? null : int(v.location),
           timestamp: int(v.timestamp), seq: int(v.seq),
         };
-        const existing = this.s.get('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id) as unknown as WorkRow | undefined;
+        const row = this.works('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id);
+        const existing = row ? fromDb(row) : undefined;
         if (!existing) {
           // Deleted in the dashboard after this position was recorded: a device that hasn't
           // heard about the deletion yet is re-sending it. Drop it; the device will forget it.
@@ -163,7 +187,7 @@ export class SyncStore {
       works: one('SELECT COUNT(*) AS n FROM works WHERE userid = ?'),
       readingList: one("SELECT COUNT(*) AS n FROM reading_list WHERE userid = ? AND path <> ''"),
       listFilters: one("SELECT COUNT(*) AS n FROM list_filters WHERE userid = ? AND data <> ''"),
-      lastActivity: (this.s.get('SELECT MAX(timestamp) AS n FROM works WHERE userid = ?').get(userid) as { n: number | null }).n,
+      lastActivity: ((n) => (n === null ? null : num(n)))((this.works('SELECT MAX(timestamp) AS n FROM works WHERE userid = ?').get(userid) as { n: unknown }).n),
     };
   }
 
@@ -183,16 +207,17 @@ export class SyncStore {
       for (const [key, w] of Object.entries(data.works ?? {})) {
         const id = int(key, -1);
         if (id <= 0) continue;
-        const existing = this.s.get('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id) as unknown as WorkRow | undefined;
+        const row = this.works('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id);
+        const existing = row ? fromDb(row) : undefined;
         if (!existing) {
           this.s.get('DELETE FROM deleted_works WHERE userid = ? AND id = ?').run(userid, id); // restoring brings it back
           this.s.get('INSERT INTO works (userid, id, chapterid, number, timestamp, location, seq) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            .run(userid, id, int(w.chapterid), int(w.number, 1), now, w.location ?? null, int(w.seq));
+            .run(userid, id, int(w.chapterid), int(w.number, 1), now, loc(w.location), int(w.seq));
           result.worksAdded++;
-        } else if (isAhead({ ...existing, seq: 0 }, { number: int(w.number, 1), location: w.location ?? null, seq: 0 })) {
+        } else if (isAhead({ ...existing, seq: 0 }, { number: int(w.number, 1), location: loc(w.location), seq: 0 })) {
           // Imported position is further along: take it, keeping the higher seq.
           this.s.get('UPDATE works SET chapterid = ?, number = ?, location = ?, timestamp = ?, seq = ? WHERE userid = ? AND id = ?')
-            .run(int(w.chapterid), int(w.number, 1), w.location ?? null, Math.max(now, existing.timestamp + 1), Math.max(existing.seq, int(w.seq)), userid, id);
+            .run(int(w.chapterid), int(w.number, 1), loc(w.location), Math.max(now, existing.timestamp + 1), Math.max(existing.seq, int(w.seq)), userid, id);
           result.worksAdvanced++;
         } else {
           result.worksKept++;

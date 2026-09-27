@@ -7,7 +7,7 @@ export interface AppRelease {
   url: string;
   publishedAt: string | null;
   /** Installer files attached to the release (the reader picks the one it needs). */
-  assets: { id: number; name: string; size: number }[];
+  assets: { id: number; name: string; size: number; sha256?: string }[];
 }
 
 /**
@@ -36,15 +36,22 @@ export class UpdateChecker {
       else if (r.status === 404) error = 'No release found (or GITHUB_TOKEN cannot see the repository).';
       else if (!r.ok) error = `GitHub returned HTTP ${r.status}`;
       else {
-        const j = (await r.json()) as { tag_name: string; name?: string; body?: string; html_url: string; published_at?: string; assets?: { id: number; name: string; size: number }[] };
+        const j = (await r.json()) as { tag_name: string; name?: string; body?: string; html_url: string; published_at?: string; assets?: { id: number; name: string; size: number; state?: string; digest?: string | null }[] };
         release = {
           version: j.tag_name.replace(/^v/i, ''), name: j.name || j.tag_name, notes: j.body ?? '', url: j.html_url,
-          publishedAt: j.published_at ?? null, assets: (j.assets ?? []).map((a) => ({ id: a.id, name: a.name, size: a.size })),
+          publishedAt: j.published_at ?? null,
+          // Skip files GitHub is still receiving: downloading one mid-upload gives a cut-off installer.
+          assets: (j.assets ?? []).filter((a) => !a.state || a.state === 'uploaded').map((a) => {
+            const sha256 = /^sha256:([0-9a-f]{64})$/i.exec(a.digest ?? '')?.[1]?.toLowerCase();
+            return { id: a.id, name: a.name, size: a.size, ...(sha256 ? { sha256 } : {}) };
+          }),
         };
       }
     } catch (e) { error = `Couldn't reach GitHub: ${(e as Error).message}`; }
     // Keep a previous good answer if GitHub is briefly unreachable.
     this.cached = { at: Date.now(), release: release ?? this.cached?.release ?? null, error };
+    // A release with no installer yet is usually still being uploaded: ask again next time.
+    if (release && !release.assets.length) this.cached.at = 0;
     return this.cached;
   }
 

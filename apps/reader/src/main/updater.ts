@@ -1,14 +1,12 @@
 import { app, dialog, shell, type BaseWindow } from 'electron';
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { isNewerVersion as isNewer } from '@ao3track/core';
 import type { Prefs } from './state.ts';
 import { installScriptArgs } from './installscript.ts';
+import { downloadVerified, DamagedDownload } from './download.ts';
 
-export interface UpdateInfo { configured: boolean; error?: string | null; version?: string; name?: string; notes?: string; url?: string; files?: { name: string; size: number }[] }
+export interface UpdateInfo { configured: boolean; error?: string | null; version?: string; name?: string; notes?: string; url?: string; files?: { name: string; size: number; sha256?: string }[] }
 export type CheckResult =
   | { state: 'no-tracker' | 'not-configured' | 'up-to-date' | 'skipped' | 'later' | 'installing' | 'opened' }
   | { state: 'error'; error: string };
@@ -63,10 +61,17 @@ export async function checkForUpdate(win: BaseWindow, prefs: () => Prefs, save: 
   const file = join(app.getPath('temp'), msi!.name);
   try {
     const r = await fetch(`${base}/api/app-update/download/${encodeURIComponent(msi!.name)}`, { headers });
-    if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
-    await pipeline(Readable.fromWeb(r.body as import('node:stream/web').ReadableStream), createWriteStream(file));
+    // Never hand Windows Installer a damaged file: check size and checksum first.
+    await downloadVerified(r, file, { size: msi!.size, sha256: msi!.sha256 });
   } catch (e) {
-    await dialog.showMessageBox(win as Electron.BaseWindow, { type: 'error', title: 'Update failed', message: "Couldn't download the update", detail: (e as Error).message });
+    const damaged = e instanceof DamagedDownload;
+    const { response: open } = await dialog.showMessageBox(win as Electron.BaseWindow, {
+      type: 'error', title: 'Update failed',
+      message: damaged ? "The update didn't download correctly" : "Couldn't download the update",
+      detail: `${(e as Error).message}\n\nNothing was installed and the reader is unchanged. Try again later, or download the installer from the release page.`,
+      buttons: info.url ? ['Open release page', 'Close'] : ['Close'], defaultId: 0, cancelId: info.url ? 1 : 0, noLink: true,
+    });
+    if (info.url && open === 0) void shell.openExternal(info.url);
     return { state: 'error', error: (e as Error).message };
   }
   // A helper waits until the reader has fully exited (a running exe can't be replaced, #10),

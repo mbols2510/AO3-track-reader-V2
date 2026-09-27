@@ -53,7 +53,7 @@ The desktop reader can also migrate directly (Settings → *Bring over data from
 
 ### 3. Install the desktop reader
 
-Run `ArchiveTrackReader-2.2.1-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`): it then checks your reading list on its own schedule, even while the reader is closed, and the reader just shows the results (⟳ checks right away).
+Run `ArchiveTrackReader-2.2.2-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`): it then checks your reading list on its own schedule, even while the reader is closed, and the reader just shows the results (⟳ checks right away).
 
 **About "updating" the Store app:** the old app from the Microsoft Store can't be upgraded in place — its package identity belongs to the original publisher's Store certificate, and Windows only lets that publisher update it. The new reader installs alongside it, with its own Start Menu entry. Migrate your data (step 2), check everything's there, then uninstall the old app from *Settings → Apps*. Future versions of the new reader *do* upgrade in place: the MSI has a fixed upgrade code, so installing 2.2 replaces 2.1. With `GITHUB_TOKEN` set on the tracker, the reader offers updates itself.
 
@@ -61,7 +61,7 @@ The MSI isn't code-signed, so SmartScreen will show "Windows protected your PC" 
 
 ### 4. Install the browser extension (optional)
 
-Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.2.1.zip**, unzip it, then:
+Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.2.2.zip**, unzip it, then:
 
 - **Chrome / Edge:** `chrome://extensions` → enable *Developer mode* → *Load unpacked* → pick the folder.
 - **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → pick `manifest.json`. (Permanent installation in Firefox requires signing it through addons.mozilla.org.)

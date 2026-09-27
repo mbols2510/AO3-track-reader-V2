@@ -5,7 +5,7 @@ name: ao3track
 # Dashboard:    http://localhost:8080      Tracker status: http://localhost:8081/api/status
 #
 # Uses the ready-made images from GitHub (AO3TRACK_VERSION in .env: "latest" by default,
-# or pin one such as 2.2.1). To build from source instead, add -f docker-compose.build.yml.
+# or pin one such as 2.2.2). To build from source instead, add -f docker-compose.build.yml.
 
 services:
   tracksync:

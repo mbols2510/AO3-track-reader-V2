@@ -89,7 +89,11 @@ test('app-update: reports the newest release and streams its installer; off with
     seen.push({ url: u, auth: new Headers(init?.headers).get('authorization') });
     if (u.endsWith('/repos/me/app/releases/latest')) {
       return Response.json({ tag_name: 'v2.2.0', name: 'Ao3Track 2.2.0', body: 'notes', html_url: 'https://github.com/me/app/releases/tag/v2.2.0',
-        assets: [{ id: 7, name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4 }] });
+        assets: [
+          { id: 7, name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4, state: 'uploaded', digest: `sha256:${'AB'.repeat(32)}` },
+          // Still being uploaded by CI: must not be offered (it would download cut off).
+          { id: 8, name: 'ArchiveTrackReader-2.2.0-x64.msix', size: 9, state: 'open' },
+        ] });
     }
     if (u.endsWith('/repos/me/app/releases/assets/7')) return new Response('MSI!', { headers: { 'content-length': '4' } });
     return new Response('nope', { status: 404 });
@@ -99,7 +103,7 @@ test('app-update: reports the newest release and streams its installer; off with
   const r = (await app.inject({ url: '/api/app-update' })).json();
   assert.equal(r.configured, true);
   assert.equal(r.version, '2.2.0');
-  assert.deepEqual(r.files, [{ name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4 }]);
+  assert.deepEqual(r.files, [{ name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4, sha256: 'ab'.repeat(32) }]);
   assert.equal(seen[0].auth, 'Bearer ghp_x');
   const d = await app.inject({ url: '/api/app-update/download/ArchiveTrackReader-2.2.0-x64.msi' });
   assert.equal(d.statusCode, 200);

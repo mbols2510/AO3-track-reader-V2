@@ -95,7 +95,7 @@ export async function buildApp(config: Config, fetchImpl?: FetchLike, githubFetc
   app.get('/api/app-update', async (req) => {
     if (!updates.configured) return { configured: false };
     const { release, error } = await updates.latest(q(req).force === '1');
-    return { configured: true, error, ...(release ? { version: release.version, name: release.name, notes: release.notes, url: release.url, publishedAt: release.publishedAt, files: release.assets.map(({ name, size }) => ({ name, size })) } : {}) };
+    return { configured: true, error, ...(release ? { version: release.version, name: release.name, notes: release.notes, url: release.url, publishedAt: release.publishedAt, files: release.assets.map(({ name, size, sha256 }) => ({ name, size, ...(sha256 ? { sha256 } : {}) })) } : {}) };
   });
 
   app.get<{ Params: { name: string } }>('/api/app-update/download/:name', async (req, reply) => {

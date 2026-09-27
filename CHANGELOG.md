@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.2 — 2026-09-27
+
+### Fixes
+- **Updates are checked before they're installed.** A reader update downloaded with *Install now* could arrive damaged (cut off by a reverse proxy or a dropped connection, or fetched while GitHub was still receiving the file), and Windows Installer then only said *"The cabinet file app.cab … is corrupted"*. The reader now checks the downloaded installer's size and checksum against the release before running it. If they don't match, nothing is installed; the reader says what went wrong and offers the release page. The tracker also no longer offers installer files that are still being uploaded.
+
+### Upgrading
+- **Servers:** `docker compose pull && docker compose up -d` (add your usual `-f` files). The tracker change takes effect right away.
+- **Reader:** the check protects updates made *from* 2.2.2 onwards. To get 2.2.2 itself, run `ArchiveTrackReader-2.2.2-x64.msi` downloaded from the release page. *Install now* also works if your connection to the tracker doesn't cut large downloads.
+- **Extension:** unchanged apart from the version number.
+
 ## 2.2.1 — 2026-09-27
 
 ### Fixes

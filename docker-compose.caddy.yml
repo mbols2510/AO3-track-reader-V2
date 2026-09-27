@@ -1,5 +1,5 @@
 # Remote access with your own domain + HTTPS (router forwards ports 80 and 443 to this machine).
-#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 services:
   tracksync:
     environment:

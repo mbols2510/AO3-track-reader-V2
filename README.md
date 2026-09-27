@@ -19,8 +19,11 @@ Everything is TypeScript on current runtimes: Node 24, Fastify 5, Electron 44, T
 
 ```sh
 cp .env.example .env          # then set INTERNAL_TOKEN (openssl rand -hex 32)
-docker compose up -d --build
+docker login ghcr.io -u mbols2510   # once; password = a classic token with read:packages
+docker compose up -d
 ```
+
+This downloads the ready-made images (`AO3TRACK_VERSION=latest` in `.env`, or pin a version). Update later with `docker compose pull && docker compose up -d`. To build from source instead: `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`.
 
 Open the dashboard at **http://localhost:8080** and create your account. The tracker's status is at http://localhost:8081/api/status.
 
@@ -31,7 +34,7 @@ By default both ports are only reachable from the same PC. To use them from othe
 Point `sync.<domain>` and `tracker.<domain>` at your home IP, forward ports 80 and 443 to this machine, fill in the remote-access section of `.env` (including `TRACKER_API_KEY`), then:
 
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 ```
 
 Caddy obtains HTTPS certificates automatically. Can't forward ports (CGNAT, some ISPs)? Use `docker-compose.tunnel.yml` with a Cloudflare Tunnel instead. In the reader, use `https://sync.<domain>` and `https://tracker.<domain>` plus the tracker API key.
@@ -50,15 +53,15 @@ The desktop reader can also migrate directly (Settings → *Bring over data from
 
 ### 3. Install the desktop reader
 
-Run `ArchiveTrackReader-2.1.0-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`) so reading-list updates come from the container instead of the reader.
+Run `ArchiveTrackReader-2.2.0-x64.msi` from the [latest release](https://github.com/mbols2510/AO3-track-reader-V2/releases/latest). On first launch the settings pane opens: enter `http://localhost:8080` and your account. Optionally set the tracker (`http://localhost:8081`): it then checks your reading list on its own schedule, even while the reader is closed, and the reader just shows the results (⟳ checks right away).
 
-**About "updating" the Store app:** the old app from the Microsoft Store can't be upgraded in place — its package identity belongs to the original publisher's Store certificate, and Windows only lets that publisher update it. The new reader installs alongside it, with its own Start Menu entry. Migrate your data (step 2), check everything's there, then uninstall the old app from *Settings → Apps*. Future versions of the new reader *do* upgrade in place: the MSI has a fixed upgrade code, so installing 2.1 replaces 2.0.
+**About "updating" the Store app:** the old app from the Microsoft Store can't be upgraded in place — its package identity belongs to the original publisher's Store certificate, and Windows only lets that publisher update it. The new reader installs alongside it, with its own Start Menu entry. Migrate your data (step 2), check everything's there, then uninstall the old app from *Settings → Apps*. Future versions of the new reader *do* upgrade in place: the MSI has a fixed upgrade code, so installing 2.2 replaces 2.1. With `GITHUB_TOKEN` set on the tracker, the reader offers updates itself.
 
 The MSI isn't code-signed, so SmartScreen will show "Windows protected your PC" → *More info* → *Run anyway*. The GitHub Actions workflow can sign builds if you add a certificate.
 
 ### 4. Install the browser extension (optional)
 
-Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.1.0.zip**, unzip it, then:
+Download it from your tracker: **http://localhost:8081/downloads/ao3track-extension-2.2.0.zip**, unzip it, then:
 
 - **Chrome / Edge:** `chrome://extensions` → enable *Developer mode* → *Load unpacked* → pick the folder.
 - **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → pick `manifest.json`. (Permanent installation in Firefox requires signing it through addons.mozilla.org.)
@@ -69,7 +72,7 @@ Open the extension's options, enter your server and sign in. If you were using t
 
 - **Reading position** is saved as you scroll, down to the paragraph. Press **Ctrl+J** (reader) or **Continue reading** (extension) to jump back to where you stopped, on any device.
 - **Works lists** show `N unread`, `Read` and `Reading list` badges, plus how many chapters you've read in the chapter count.
-- **Reading list** (reader sidebar, **Ctrl+B**): works, series and tag/search pages. Shows unread chapters, progress, and whether a work is complete. Grouped by fandom like the original app (fold groups away, or switch to *No grouping*); filtered fandom listings and searches show readable names. Star entries to pin them. Add with **Ctrl+D** or the ☆ button; right-click any AO3 link for more.
+- **Reading list** (reader sidebar, **Ctrl+B**): works, series and tag/search pages. Shows unread chapters, progress, and whether a work is complete. Grouped by fandom like the original app (fold groups away, or switch to *No grouping*); fandoms named "原名 | English name" on AO3 show their English name, and right-clicking a group lets you rename it; filtered fandom listings and searches show readable names. Star entries to pin them. Add with **Ctrl+D** or the ☆ button; right-click any AO3 link for more.
 - **Hide works** by tag, author, work or series: right-click a link → *Hide works…*. Also: *Only show General / Teen works*.
 - **Unit conversion**: click a measurement ("72 degrees Fahrenheit") in a story to convert it.
 - Other shortcuts: **Ctrl+Shift+←/→** previous/next chapter, **Ctrl+=/−/0** text size (whole page by default, or story text only — see Settings → Appearance), **Alt+←/→** back/forward, **Ctrl+L** address bar (type a search, a link, or just a work number).
@@ -78,11 +81,11 @@ Open the extension's options, enter your server and sign in. If you were using t
 
 AO3 limits requests per IP address per minute and answers with HTTP 429 "Retry later" when you go over. The limit isn't published, so Ao3Track is deliberately conservative:
 
-- **All background requests go through one limiter**: one request at a time, a burst of 3, then about one every 6 seconds (≈10/minute), and never closer than 2 seconds apart. Things you asked for jump the queue; they never raise the rate.
-- **On a 429 everything pauses** — for `Retry-After` plus a margin if AO3 sent one, otherwise 5 minutes, doubling on repeated 429s up to an hour.
+- **All background requests go through one limiter**: one request at a time, a burst of 2, then about one every 12 seconds (≈5/minute), and never closer than 2 seconds apart. Things you asked for jump the queue; they never raise the rate.
+- **On a 429 everything pauses** for at least 5 minutes, doubling on repeated 429s up to an hour (longer if AO3's `Retry-After` asks for it; AO3 often says 60 seconds, but going back that soon tends to trip it again).
 - **Batching:** the status of up to 20 works is fetched with a single search request (`id:(1 OR 2 OR …)`), so refreshing a 200-work reading list costs about 10 requests, spread over a couple of minutes.
 - **Caching:** metadata is reused for 6 hours. The desktop reader also learns from pages you're already reading: every works list and work page you open updates the cache for free.
-- **One IP, one budget:** if you browse AO3 yourself and hit "Retry later", the reader shows a banner and pauses its own background lookups too. When a tracker is configured, the reader leaves background lookups entirely to it and doesn't retry around it.
+- **One IP, one budget:** if you browse AO3 yourself and hit "Retry later", the reader shows a banner and pauses its own background lookups too. When a tracker is configured, the reader leaves background lookups entirely to it: it only reads the tracker's results, and asks AO3 for fresh data only when you press ⟳.
 
 All limits are adjustable in `.env`. Please don't turn them up much: AO3 is run by volunteers.
 
@@ -90,7 +93,9 @@ All limits are adjustable in `.env`. Please don't turn them up much: AO3 is run 
 
 TrackSync: `PORT` (8080), `DB_PATH`, `ALLOW_REGISTRATION`, `PUBLIC_URL`, `TRACKER_URL`, `INTERNAL_TOKEN`, `LEGACY_API_URL`, `TRUST_PROXY`, `CORS_ORIGINS`.
 
-Tracker: `PORT` (8081), `DB_PATH`, `TRACKSYNC_URL`, `INTERNAL_TOKEN`, `RATE_BURST`, `RATE_REFILL_SECONDS`, `RATE_MIN_INTERVAL_SECONDS`, `RATE_PAUSE_MINUTES`, `CACHE_TTL_HOURS`, `REFRESH_INTERVAL_HOURS`, `USER_AGENT`, `AO3_COOKIE`, `DOWNLOADS_DIR`.
+Tracker: `PORT` (8081), `DB_PATH`, `TRACKSYNC_URL`, `INTERNAL_TOKEN`, `RATE_BURST`, `RATE_REFILL_SECONDS`, `RATE_MIN_INTERVAL_SECONDS`, `RATE_PAUSE_MINUTES`, `CACHE_TTL_HOURS`, `REFRESH_INTERVAL_HOURS`, `USER_AGENT`, `AO3_COOKIE`, `DOWNLOADS_DIR`, `GITHUB_TOKEN`, `GITHUB_REPO`.
+
+Compose: `AO3TRACK_VERSION` (`latest`), `AO3TRACK_IMAGES` (`ghcr.io/mbols2510`).
 
 Admin CLI inside the TrackSync container:
 
@@ -100,6 +105,8 @@ docker compose exec tracksync node cli.js reset-password <user> <new-password>
 docker compose exec tracksync node cli.js migrate <user> <old-user> <old-password>
 docker compose exec tracksync node cli.js export <user> > backup.json
 ```
+
+The dashboard's *Works tracked* list shows every saved reading position; deleting one there also removes it from the reader and extension at their next sync.
 
 Backups: the data lives in the `tracksync-data` volume (`/data/tracksync.db`, SQLite). The dashboard also has *Download backup* / *Restore from backup* (JSON; restoring merges and never deletes).
 

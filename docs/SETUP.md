@@ -26,7 +26,7 @@ The diagram shows the finished setup. Caddy is a web server you'll add in Part 5
 What you need:
 
 - A PC or home server that stays on, with Docker installed (Docker Desktop on Windows is fine).
-- This repository (*Code → Download ZIP*, or `git clone`), plus `ArchiveTrackReader-2.1.0-x64.msi` and `ao3track-extension-2.1.0.zip` from the [Releases](https://github.com/mbols2510/AO3-track-reader-V2/releases) page.
+- This repository (*Code → Download ZIP*, or `git clone`), plus `ArchiveTrackReader-2.2.0-x64.msi` and `ao3track-extension-2.2.0.zip` from the [Releases](https://github.com/mbols2510/AO3-track-reader-V2/releases) page.
 - For remote access: your domain, access to its DNS settings, and access to your router's port-forwarding page.
 
 ## Part 1: Run the servers
@@ -39,9 +39,13 @@ One command starts both containers once a `.env` file exists. Do this on the mac
    - Windows: `copy .env.example .env`
    - Mac/Linux: `cp .env.example .env`
 4. Generate a random secret for `INTERNAL_TOKEN`. In PowerShell 7 run `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`; on Mac/Linux run `openssl rand -hex 32`. Paste the result into `.env` after `INTERNAL_TOKEN=`.
-5. Start everything: `docker compose up -d --build`. The first build takes 2–5 minutes.
-6. Check both show `healthy`: `docker compose ps`.
-7. Open **http://localhost:8080**, click *Create account*, and pick a username and password. This is your new account; it doesn't need to match your old one.
+5. Let Docker download the ready-made images. The repository is private, so its images are too, and Docker needs to sign in to GitHub's image registry once:
+   - On GitHub: your picture → *Settings* → *Developer settings* → *Personal access tokens* → **Tokens (classic)** → *Generate new token (classic)*. Tick only **read:packages** and choose an expiry. (GitHub's image registry doesn't accept fine-grained tokens.)
+   - Run `docker login ghcr.io -u mbols2510` and paste that token as the password. Docker remembers it.
+6. Start everything: `docker compose up -d`. The first download takes a minute or two.
+   Prefer to build from the source code instead? Use `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` (2–5 minutes).
+7. Check both show `healthy`: `docker compose ps`.
+8. Open **http://localhost:8080**, click *Create account*, and pick a username and password. This is your new account; it doesn't need to match your old one.
 
 The tracker's status page is **http://localhost:8081/api/status**. It shows how many works are cached and whether AO3 has asked it to pause.
 
@@ -51,8 +55,12 @@ The defaults in `.env` are safe to leave alone. The ones worth knowing:
 | --- | --- | --- |
 | `BIND_ADDRESS` | `127.0.0.1` | Set `0.0.0.0` to reach the servers from other devices on your home Wi-Fi |
 | `ALLOW_REGISTRATION` | `true` | Set `false` once your account exists (required before going public in Part 5) |
-| `REFRESH_INTERVAL_HOURS` | `6` | How often the tracker checks your reading list for new chapters |
-| `RATE_REFILL_SECONDS` | `6` | Seconds between AO3 requests; raising it is gentler, lowering it is not recommended |
+| `AO3TRACK_VERSION` | `latest` | Pin a version (e.g. `2.2.0`) if you don't want to follow every release |
+| `REFRESH_INTERVAL_HOURS` | `6` | How often the tracker checks your reading list for new chapters (even while the reader is closed) |
+| `GITHUB_TOKEN` | empty | Set it so the desktop reader can tell you about new versions and install them (see below) |
+| `RATE_REFILL_SECONDS` | `12` | Seconds between AO3 requests; raising it is gentler, lowering it is not recommended |
+
+**Reader updates.** The desktop reader asks your tracker whether a new version exists, and the tracker asks GitHub. Because the repository is private, the tracker needs a read-only token: on GitHub, *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained tokens* → *Generate new token*, choose **Only select repositories** → this repository, and under *Repository permissions* set **Contents: Read-only**. Paste it into `.env` after `GITHUB_TOKEN=`. The reader then checks shortly after it starts (and via *Settings → Check for updates*), and offers *Install now*, *Later* or *Skip this version*.
 
 After editing `.env`, apply it with `docker compose up -d`. If something doesn't start, `docker compose logs tracksync` or `docker compose logs tracker` shows why.
 
@@ -82,7 +90,7 @@ From a terminal, the same imports work with the admin tool:
 
 The MSI installs the new reader for all users, with Start Menu and desktop shortcuts. It sits alongside the old Store app rather than replacing it.
 
-1. Double-click `ArchiveTrackReader-2.1.0-x64.msi`. The installer isn't code-signed, so Windows shows *Windows protected your PC*: click *More info*, then *Run anyway*. Approve the admin prompt.
+1. Double-click `ArchiveTrackReader-2.2.0-x64.msi`. The installer isn't code-signed, so Windows shows *Windows protected your PC*: click *More info*, then *Run anyway*. Approve the admin prompt.
 2. Launch *Archive Track Reader*. The Settings pane opens on first run.
 3. Under **Sync**, enter `http://localhost:8080` plus the account from Part 1, and click *Sign in*. Your migrated reading list fills the sidebar within a few seconds.
 4. Under **Tracker service**, enter `http://localhost:8081` and click *Test*. Leave *API key* empty for now; you'll fill it in Part 5.
@@ -96,7 +104,7 @@ Future versions of the new reader do upgrade in place: running a newer MSI repla
 
 ## Part 4: Install the browser extension (optional)
 
-The extension tracks your place when you read AO3 in a normal browser, and syncs with the reader. Download `ao3track-extension-2.1.0.zip` from the Releases page; your tracker also serves it at **http://localhost:8081/downloads/**.
+The extension tracks your place when you read AO3 in a normal browser, and syncs with the reader. Download `ao3track-extension-2.2.0.zip` from the Releases page; your tracker also serves it at **http://localhost:8081/downloads/**.
 
 1. Unzip it to a folder you'll keep, for example `C:\ao3track\extension`. The browser loads it from there, so don't delete it.
 2. Load it:
@@ -145,7 +153,7 @@ What's reachable once you're online:
 5. **Start with the Caddy overlay:**
 
    ```
-   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
    ```
 
 6. **Check the certificates.** Run `docker compose -f docker-compose.yml -f docker-compose.caddy.yml logs caddy` and look for *certificate obtained successfully* for both names. If you instead see a timeout, port 80 isn't reaching the machine; recheck step 2 and the firewall note below.
@@ -167,7 +175,7 @@ The `cloudflared` container dials out to Cloudflare, and Cloudflare serves your 
 4. Start with the tunnel overlay:
 
    ```
-   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
    ```
 
 5. Under *Security → Bots* for your domain, make sure *Bot Fight Mode* is off, or add a skip rule for these two hostnames. The reader and extension aren't web browsers, so a Cloudflare challenge page would silently break syncing.
@@ -207,7 +215,7 @@ docker run --rm -v ao3track_tracksync-data:/data -v "${PWD}:/backup" alpine tar 
 docker compose start tracksync
 ```
 
-**Updating.** Pull or unzip the new version over the old folder, keeping your `.env`. Then re-run the same `up -d --build` command you use, including any `-f` overlay files. Data volumes are untouched. For the reader, run the newer MSI; it replaces the old version in place.
+**Updating.** With `AO3TRACK_VERSION=latest` (the default), run `docker compose pull` and then `docker compose up -d`, adding the same `-f` overlay files you normally use. Data volumes are untouched. If you build from source, update the folder (`git pull`) and re-run your `--build` command instead. For the reader, accept the update prompt, or run the newer MSI yourself; it replaces the old version in place.
 
 **Admin commands** (add the same `-f` flags if you started with an overlay):
 
@@ -229,6 +237,8 @@ docker compose start tracksync
 | Works on mobile data, not at home | Router lacks NAT loopback | Add the `hosts` lines from Part 5 |
 | Caddy log shows certificate errors | Port 80 not reaching Caddy, or DNS not yet updated | Recheck forwarding; wait up to an hour for DNS, then restart Caddy |
 | Tracker *Test* says *wrong or missing API key* | Key in the reader doesn't match `TRACKER_API_KEY` | Copy the value from `.env` again, without spaces |
-| Reading list says *AO3 asked us to wait* | AO3 rate-limited your home IP | Nothing: it resumes automatically. If frequent, raise `RATE_REFILL_SECONDS` |
+| Reading list says *Updates paused by AO3* | AO3 rate-limited your home IP | Nothing: it resumes automatically (after at least 5 minutes). If frequent, raise `RATE_REFILL_SECONDS` |
+| `docker compose pull` says *denied* or *unauthorized* | Docker isn't signed in to ghcr.io, or the token lacks `read:packages` | Part 1, step 5 |
+| *Check for updates* says the tracker isn't set up | `GITHUB_TOKEN` missing from `.env` | See *Reader updates* in Part 1, then `docker compose up -d` |
 | Extension won't sign in | Permission prompt was dismissed | Remove and re-add the extension, then sign in again and allow the prompt |
 | Syncing stopped after a password change | Changing the password signs every device out, by design | Sign in again on each device |

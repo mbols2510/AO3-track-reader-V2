@@ -1,0 +1,10 @@
+# Build the images from this checkout instead of downloading them:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# (add docker-compose.caddy.yml or docker-compose.tunnel.yml after these two if you use one)
+services:
+  tracksync:
+    build: { context: ., target: tracksync }
+    image: ao3track/tracksync:local
+  tracker:
+    build: { context: ., target: tracker }
+    image: ao3track/tracker:local

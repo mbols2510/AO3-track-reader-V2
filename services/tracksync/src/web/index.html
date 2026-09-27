@@ -104,6 +104,17 @@
           </form>
         </article>
 
+        <article class="card wide" id="works-card">
+          <div class="card-head"><h2>Works tracked</h2><input id="w-filter" type="search" placeholder="Filter…"></div>
+          <p class="hint">Every work you have a saved reading position for. Deleting one forgets where you were in it, on every device at their next sync. If you read it again later, it's tracked again.</p>
+          <div class="toolbar">
+            <label class="check"><input type="checkbox" id="w-all"> Select all shown</label>
+            <button id="w-delete" disabled>Delete selected</button>
+            <output id="w-out" class="out"></output>
+          </div>
+          <ul id="works" class="rl selectable"></ul>
+        </article>
+
         <article class="card wide">
           <div class="card-head"><h2>Reading list</h2><input id="rl-filter" type="search" placeholder="Filter…"></div>
           <ul id="rl" class="rl"></ul>

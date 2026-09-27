@@ -1,6 +1,6 @@
 {
   "name": "@ao3track/tracksync",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Ao3Track sync server (wire-compatible with the original Ao3tracksync ASP.NET service)",

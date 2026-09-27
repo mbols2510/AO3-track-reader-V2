@@ -1,6 +1,6 @@
 // End-to-end: the real Electron reader + fake AO3 + real tracksync + a stand-in for the original cloud service.
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -10,6 +10,9 @@ import { buildApp } from '../../services/tracksync/src/app.ts';
 import { loadConfig } from '../../services/tracksync/src/config.ts';
 import { TrackSyncClient } from '../../packages/core/src/index.ts';
 import { startFakeAo3 } from './fakeao3.ts';
+import { buildApp as buildTracker } from '../../services/tracker/src/app.ts';
+import { loadConfig as trackerConfig } from '../../services/tracker/src/config.ts';
+import { createServer } from 'node:http';
 
 process.env.LOG_LEVEL = 'silent';
 const require = createRequire(import.meta.url);
@@ -25,6 +28,20 @@ async function server() {
 const sync = await server();
 const legacy = await server();
 const ao3 = await startFakeAo3();
+// A stand-in for GitHub's releases API (issue #5) and a real tracker pointed at the fake AO3.
+const gh = createServer((req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  if (req.url?.endsWith('/releases/latest')) return res.end(JSON.stringify({ tag_name: 'v9.9.0', name: 'Ao3Track 9.9.0', html_url: 'https://github.com/x/y/releases/tag/v9.9.0',
+    body: '### Enhancements\n- **Docker images follow latest** (#4). Details.\n- **Update checker** (#5). More.', assets: [{ id: 1, name: 'ArchiveTrackReader-9.9.0-x64.msi', size: 10 }] }));
+  res.statusCode = 404; res.end('{}');
+});
+await new Promise<void>((r) => gh.listen(0, '127.0.0.1', () => r()));
+const tracker = await buildTracker(trackerConfig({
+  DB_PATH: ':memory:', AO3_ORIGIN: `http://127.0.0.1:${ao3.port}`, RATE_REFILL_SECONDS: '0.2', RATE_MIN_INTERVAL_SECONDS: '0', REFRESH_INTERVAL_HOURS: '0',
+  GITHUB_TOKEN: 'test-token', GITHUB_REPO: 'x/y', GITHUB_API_URL: `http://127.0.0.1:${(gh.address() as AddressInfo).port}`,
+} as NodeJS.ProcessEnv));
+await tracker.listen({ port: 0, host: '127.0.0.1' });
+const trackerUrl = `http://127.0.0.1:${(tracker.server.address() as AddressInfo).port}`;
 
 // Seed the "original service" with a long-time user's data.
 const old = new TrackSyncClient(legacy.url);
@@ -219,6 +236,87 @@ try {
   await ui.click('#settings-close');
   step('Ctrl+0 resets the text size');
 
+  // Issue #9: a fandom AO3 names "Chinese | English" shows (and sorts by) its English name, and can be renamed
+  await ui.fill('#url', 'http://archiveofourown.org/works/789/chapters/7890');
+  await ui.press('#url', 'Enter');
+  await page.waitForSelector('#chapters .userstuff p');
+  await ui.click('#btn-rl');
+  await ui.waitForFunction(() => [...document.querySelectorAll('.group-head .name')].some((e) => e.textContent === 'Módào Zǔshī - Mòxiāng Tóngxiù'), null, { timeout: 10000 });
+  let names = await ui.$$eval('.group-head .name', (els: HTMLElement[]) => els.map((e) => e.textContent));
+  assert.ok(names.indexOf('Good Omens') < names.indexOf('Módào Zǔshī - Mòxiāng Tóngxiù'), `sorted by English name: ${names}`);
+  step('fandom "魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù" shows as "Módào Zǔshī - Mòxiāng Tóngxiù" and sorts by it');
+  // Right-click → Rename group… (the native menu can't be clicked by the test, so send what it sends)
+  await app.evaluate(({ BaseWindow }: any, name: string) => BaseWindow.getAllWindows()[0].contentView.children[0].webContents.send('renameGroup', name), '魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù');
+  await ui.waitForSelector('.group-head .rename');
+  await ui.fill('.group-head .rename', 'Mo Dao Zu Shi');
+  await ui.press('.group-head .rename', 'Enter');
+  await ui.waitForFunction(() => [...document.querySelectorAll('.group-head .name')].some((e) => e.textContent === 'Mo Dao Zu Shi'));
+  const cardBy = await ui.$eval('.card[data-key$="/works/789"] .by', (e: HTMLElement) => e.textContent);
+  assert.ok(cardBy.includes('Mo Dao Zu Shi'), cardBy);
+  let saved: Record<string, string> = {};
+  for (let i = 0; i < 30 && !saved['魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù']; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    try { saved = JSON.parse(readFileSync(join(dataDir, 'state.json'), 'utf8')).prefs.fandomNames ?? {}; } catch { /* mid-write */ }
+  }
+  assert.equal(saved['魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù'], 'Mo Dao Zu Shi');
+  await screenshot('reader-rename');
+  step('renamed the group to "Mo Dao Zu Shi": header, card and saved settings updated');
+
+  // Issue #7: with a tracker, the reader only reads the tracker's results; ⟳ checks now
+  await ui.click('#banner-close').catch(() => {});
+  const ao3Lookups = () => ao3.hits.filter((h) => h.startsWith('/works/search') || h.startsWith('/works?') || h.startsWith('/series/')).length;
+  await ui.click('#btn-settings');
+  await ui.fill('#tracker-url', trackerUrl);
+  await ui.press('#tracker-url', 'Tab');
+  await ui.waitForSelector('#refresh-tracker-note:not([hidden])');
+  assert.ok(await ui.$eval('#refresh-hours-row', (e: HTMLElement) => e.hidden), 'own schedule hidden in tracker mode');
+  const lookupsBefore = ao3Lookups();
+  await ui.waitForFunction(() => /via tracker/.test(document.querySelector('#rl-status')!.textContent ?? ''), null, { timeout: 10000 });
+  await page.waitForTimeout(1500);
+  assert.equal(ao3Lookups(), lookupsBefore, 'switching to the tracker caused no AO3 requests');
+  assert.equal((await (await fetch(`${trackerUrl}/api/status`)).json()).limiter.totalRequests, 0, 'tracker made no AO3 requests for a background read');
+  step('tracker mode: background update read the tracker cache only (0 AO3 requests); reader schedule replaced by a note');
+  await ui.click('#settings-close');
+  // Another device adds a work; the reader learns about it by syncing, but doesn't look it up by itself.
+  const laptop = new TrackSyncClient(sync.url);
+  await laptop.login('longtime', 'newpass1');
+  await laptop.syncReadingList({ last_sync: 0, paths: { 'http://archiveofourown.org/works/555': Date.now() } });
+  await ui.click('#btn-sync');
+  await ui.waitForSelector('.card[data-key$="/works/555"]', { timeout: 10000 });
+  await page.waitForTimeout(1500);
+  assert.ok((await ui.textContent('.card[data-key$="/works/555"]'))!.includes('Not checked yet'));
+  assert.equal((await (await fetch(`${trackerUrl}/api/status`)).json()).limiter.totalRequests, 0, 'still no AO3 requests');
+  await ui.click('#rl-refresh');
+  await ui.waitForFunction(() => /Updated .* via tracker/.test(document.querySelector('#rl-status')!.textContent ?? ''), null, { timeout: 20000 });
+  assert.ok((await (await fetch(`${trackerUrl}/api/status`)).json()).limiter.totalRequests > 0, 'the tracker checked AO3');
+  await ui.waitForFunction(() => !(document.querySelector('.card[data-key$="/works/555"]')?.textContent ?? '').includes('Not checked yet'), null, { timeout: 10000 });
+  step('work added on another device waits ("Not checked yet"); ⟳ made the tracker check AO3 right away');
+
+  // Issue #6: a background pause shows as a quiet line, not the banner
+  tracker.gateway.limiter.reportRateLimited(60_000);
+  await ui.click('#btn-settings');
+  await ui.fill('#tracker-url', `${trackerUrl}/`); // any change re-reads the tracker
+  await ui.press('#tracker-url', 'Tab');
+  await ui.click('#settings-close');
+  await ui.waitForFunction(() => /Updates paused by AO3 until/.test(document.querySelector('#rl-status')!.textContent ?? ''), null, { timeout: 10000 });
+  assert.ok(await ui.$eval('#banner', (e: HTMLElement) => e.hidden), 'no banner for a background pause');
+  step(`background pause: "${await ui.textContent('#rl-status')}", no banner`);
+
+  // Issue #5: update check through the tracker (the native dialog is stubbed to record it and answer "Later")
+  await app.evaluate(({ dialog }: any) => {
+    (globalThis as any).__dialogs = [];
+    dialog.showMessageBox = async (_w: unknown, o: unknown) => { (globalThis as any).__dialogs.push(o); return { response: 1 }; };
+  });
+  await ui.click('#btn-settings');
+  await ui.click('#check-update');
+  await ui.waitForFunction(() => !(document.querySelector('#check-update') as HTMLButtonElement).disabled);
+  const dlg = await app.evaluate(() => (globalThis as any).__dialogs[0]);
+  assert.equal(dlg?.message, 'Archive Track Reader 9.9.0 is available', JSON.stringify(dlg));
+  assert.deepEqual(dlg.buttons.slice(1), ['Later', 'Skip this version']);
+  assert.ok(dlg.detail.includes('You have 2.2.0') && dlg.detail.includes('Update checker'), dlg.detail);
+  await ui.click('#settings-close');
+  step(`update prompt: "${dlg.message}" [${dlg.buttons.join(' | ')}]`);
+
   // Dark mode
   await ui.click('#btn-settings');
   await ui.click('#theme button[data-v="dark"]');
@@ -237,5 +335,7 @@ try {
   await app.close().catch(() => {});
   await sync.app.close();
   await legacy.app.close();
+  await tracker.close();
+  gh.close();
   ao3.server.close();
 }

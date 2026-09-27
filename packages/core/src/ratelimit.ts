@@ -7,10 +7,10 @@
  * until it clears. So this scheduler:
  *
  *   - runs requests one at a time (no parallel bursts),
- *   - uses a token bucket (default: burst of 3, then one request per 6s = 10/min),
+ *   - uses a token bucket (default: burst of 2, then one request per 12s = 5/min),
  *   - enforces a minimum gap between request starts,
- *   - on 429 / "Retry later" pauses the whole queue for Retry-After
- *     (or an exponential backoff starting at 5 minutes, capped at 1 hour),
+ *   - on 429 / "Retry later" pauses the whole queue for at least 5 minutes
+ *     (longer if AO3's Retry-After says so), doubling on repeats up to 1 hour,
  *   - lets user-initiated work jump ahead of background refreshes.
  */
 
@@ -23,7 +23,7 @@ export interface RateLimiterOptions {
   refillMs: number;
   /** Minimum time between request starts, regardless of tokens. */
   minIntervalMs: number;
-  /** Pause used on 429 when AO3 sends no Retry-After. Doubles on repeats. */
+  /** Shortest pause after a 429, even if AO3's Retry-After is shorter. Doubles on repeats. */
   defaultPauseMs: number;
   maxPauseMs: number;
   /** Max queued low-priority jobs; older ones beyond this are rejected. */
@@ -33,8 +33,8 @@ export interface RateLimiterOptions {
 }
 
 export const defaultLimiterOptions = (): RateLimiterOptions => ({
-  burst: 3,
-  refillMs: 6_000,
+  burst: 2,
+  refillMs: 12_000,
   minIntervalMs: 2_000,
   defaultPauseMs: 5 * 60_000,
   maxPauseMs: 60 * 60_000,
@@ -139,8 +139,9 @@ export class Ao3RateLimiter {
     this.totalRateLimited++;
     this.consecutive429++;
     const backoff = Math.min(this.opts.defaultPauseMs * 2 ** (this.consecutive429 - 1), this.opts.maxPauseMs);
-    // Honour the server's Retry-After, but never retry sooner than 30s and add a little slack.
-    const wait = retryAfterMs != null && retryAfterMs > 0 ? Math.max(retryAfterMs + 5_000, 30_000) : backoff;
+    // AO3 often says "retry in 60s", but going back that soon tends to trip the limit again:
+    // wait at least the backoff (5 min, doubling), or longer if Retry-After asks for more.
+    const wait = retryAfterMs != null && retryAfterMs > 0 ? Math.max(retryAfterMs + 5_000, backoff) : backoff;
     this.pausedUntil = Math.max(this.pausedUntil, this.opts.now() + Math.min(wait, this.opts.maxPauseMs));
     this.tokens = 0;
     this.emit();

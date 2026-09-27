@@ -50,6 +50,11 @@ export class SyncStore {
         };
         const existing = this.s.get('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id) as unknown as WorkRow | undefined;
         if (!existing) {
+          // Deleted in the dashboard after this position was recorded: a device that hasn't
+          // heard about the deletion yet is re-sending it. Drop it; the device will forget it.
+          const del = this.s.get('SELECT timestamp FROM deleted_works WHERE userid = ? AND id = ?').get(userid, id) as { timestamp: number } | undefined;
+          if (del && del.timestamp >= incoming.timestamp) continue;
+          if (del) this.s.get('DELETE FROM deleted_works WHERE userid = ? AND id = ?').run(userid, id); // read again since: track it again
           this.s.get('INSERT INTO works (userid, id, chapterid, number, timestamp, location, seq) VALUES (?, ?, ?, ?, ?, ?, ?)')
             .run(userid, id, incoming.chapterid, incoming.number, incoming.timestamp, incoming.location, incoming.seq);
         } else if (existing.timestamp < incoming.timestamp || existing.seq < incoming.seq) {
@@ -64,7 +69,27 @@ export class SyncStore {
   }
 
   deleteWork(userid: number, id: number) {
-    this.s.get('DELETE FROM works WHERE userid = ? AND id = ?').run(userid, id);
+    return this.deleteWorks(userid, [id]);
+  }
+
+  /** Forget reading positions, and remember the deletion so the apps forget them too. */
+  deleteWorks(userid: number, ids: number[], now = Date.now()): number {
+    let n = 0;
+    tx(this.db, () => {
+      for (const raw of ids) {
+        const id = int(raw, -1);
+        if (id <= 0) continue;
+        n += Number(this.s.get('DELETE FROM works WHERE userid = ? AND id = ?').run(userid, id).changes);
+        this.s.get('INSERT OR REPLACE INTO deleted_works (userid, id, timestamp) VALUES (?, ?, ?)').run(userid, id, now);
+      }
+    });
+    return n;
+  }
+
+  /** Deletions newer than `after`, as { workid: deletedAt }. */
+  deletedWorks(userid: number, after = 0): Record<string, number> {
+    const rows = this.s.get('SELECT id, timestamp FROM deleted_works WHERE userid = ? AND timestamp > ?').all(userid, after) as { id: number; timestamp: number }[];
+    return Object.fromEntries(rows.map((r) => [String(r.id), r.timestamp]));
   }
 
   // ---- api/ReadingList and api/ListFilters (same algorithm, different table) ----
@@ -160,6 +185,7 @@ export class SyncStore {
         if (id <= 0) continue;
         const existing = this.s.get('SELECT * FROM works WHERE userid = ? AND id = ?').get(userid, id) as unknown as WorkRow | undefined;
         if (!existing) {
+          this.s.get('DELETE FROM deleted_works WHERE userid = ? AND id = ?').run(userid, id); // restoring brings it back
           this.s.get('INSERT INTO works (userid, id, chapterid, number, timestamp, location, seq) VALUES (?, ?, ?, ?, ?, ?, ?)')
             .run(userid, id, int(w.chapterid), int(w.number, 1), now, w.location ?? null, int(w.seq));
           result.worksAdded++;

@@ -98,13 +98,14 @@
 
       <section>
         <h3>Tracker service <span class="badge-opt">optional</span></h3>
-        <p class="muted small">When set, reading-list updates come from your tracker container, which paces all AO3 requests in one place. Leave empty to have the reader check AO3 itself (also rate-limited).</p>
+        <p class="muted small">When set, your tracker container checks the reading list for updates and paces all AO3 requests in one place; the reader just shows its results. Leave empty to have the reader check AO3 itself (also rate-limited).</p>
         <input id="tracker-url" placeholder="http://localhost:8081 or https://tracker.yourdomain.com">
         <div class="row"><input id="tracker-key" type="password" placeholder="API key (only if the tracker has one)" autocomplete="off"><button id="tracker-test">Test</button></div>
         <p class="small" id="tracker-out"></p>
-        <label>Check reading list for updates
+        <label id="refresh-hours-row">Check reading list for updates
           <select id="refresh-hours"><option value="0">Only when I ask</option><option value="1">Every hour</option><option value="3">Every 3 hours</option><option value="6">Every 6 hours</option><option value="12">Every 12 hours</option><option value="24">Daily</option></select>
         </label>
+        <p class="muted small" id="refresh-tracker-note" hidden>Your tracker checks the reading list for updates on its own schedule, even while the reader is closed (<code>REFRESH_INTERVAL_HOURS</code> in its <code>.env</code>, every 6 hours by default). Press ⟳ in the reading list to check right now.</p>
       </section>
 
       <section class="accent">
@@ -179,6 +180,7 @@
       </section>
 
       <section>
+        <div class="row"><button id="check-update">Check for updates</button><span class="small" id="update-out"></span></div>
         <p class="muted small">Archive Track Reader <span id="version"></span>. An unofficial reader; not affiliated with the Archive of Our Own or the OTW. Licensed under Apache 2.0.</p>
       </section>
     </div>

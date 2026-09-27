@@ -14,8 +14,8 @@ export function loadConfig(env = process.env) {
     /** How often the reading-list refresher runs (0 disables it). */
     refreshIntervalMs: num(env.REFRESH_INTERVAL_HOURS, 6) * 3600_000,
     limiter: {
-      burst: num(env.RATE_BURST, 3),
-      refillMs: num(env.RATE_REFILL_SECONDS, 6) * 1000,
+      burst: num(env.RATE_BURST, 2),
+      refillMs: num(env.RATE_REFILL_SECONDS, 12) * 1000,
       minIntervalMs: num(env.RATE_MIN_INTERVAL_SECONDS, 2) * 1000,
       defaultPauseMs: num(env.RATE_PAUSE_MINUTES, 5) * 60_000,
     },
@@ -27,6 +27,11 @@ export function loadConfig(env = process.env) {
     downloadsDir: env.DOWNLOADS_DIR ? resolve(env.DOWNLOADS_DIR) : null,
     /** When set, /api/* requires this key (X-Api-Key header or Bearer token). Set it before exposing the tracker to the internet. */
     apiKey: env.API_KEY || null,
+    /** Read-only GitHub token so readers can be told about (and download) new versions from a private repo. */
+    githubToken: env.GITHUB_TOKEN || null,
+    githubRepo: env.GITHUB_REPO || 'mbols2510/AO3-track-reader-V2',
+    /** Testing only: point at a fake GitHub API. */
+    githubApi: (env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, ''),
     corsOrigins: (env.CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   };
 }

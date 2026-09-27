@@ -7,3 +7,5 @@ export * from './ao3client.ts';
 export * from './syncclient.ts';
 export * from './legacy.ts';
 export * from './syncengine.ts';
+export * from './fandom.ts';
+export * from './version.ts';

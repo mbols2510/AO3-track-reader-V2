@@ -87,15 +87,18 @@ export class Gateway {
     }
   }
 
-  /** Cached metadata, queuing anything stale. With waitMs, waits (bounded) for fresh data. */
-  async works(ids: number[], opts: { priority?: Priority; waitMs?: number; maxAgeMs?: number } = {}) {
+  /**
+   * Cached metadata, queuing anything stale. With waitMs, waits (bounded) for fresh data.
+   * With cacheOnly, returns what's cached (however old) and never contacts AO3.
+   */
+  async works(ids: number[], opts: { priority?: Priority; waitMs?: number; maxAgeMs?: number; cacheOnly?: boolean } = {}) {
     const unique = [...new Set(ids)].filter((n) => Number.isInteger(n) && n > 0).slice(0, 500);
     const cached = this.cache.getWorks(unique);
     const stale = unique.filter((id) => {
       const c = cached.get(id);
       return !c || !this.isFresh(c.fetchedAt, opts.maxAgeMs);
     });
-    if (stale.length) {
+    if (stale.length && !opts.cacheOnly) {
       const done = this.request(stale, opts.priority ?? 'low');
       if (opts.waitMs) await Promise.race([done, new Promise((r) => setTimeout(r, opts.waitMs))]);
     }
@@ -106,14 +109,14 @@ export class Gateway {
       if (c?.meta) works.push(c.meta);
       else if (c?.status === 'missing') missing.push(id);
       else pending.push(id);
-      if (c && !this.isFresh(c.fetchedAt, opts.maxAgeMs) && !pending.includes(id)) pending.push(id);
+      if (!opts.cacheOnly && c && !this.isFresh(c.fetchedAt, opts.maxAgeMs) && !pending.includes(id)) pending.push(id);
     }
     return { works, missing, pending, limiter: this.limiter.status() };
   }
 
-  async series(id: number, priority: Priority = 'low', maxAgeMs = this.config.cacheTtlMs): Promise<SeriesMeta | null> {
+  async series(id: number, priority: Priority = 'low', maxAgeMs = this.config.cacheTtlMs, cacheOnly = false): Promise<SeriesMeta | null> {
     const c = this.cache.getSeries(id);
-    if (c && this.isFresh(c.fetchedAt, maxAgeMs)) return c.meta;
+    if (cacheOnly || (c && this.isFresh(c.fetchedAt, maxAgeMs))) return c?.meta ?? null;
     try {
       const html = await this.client.getHtml(`/series/${id}`, priority);
       const { series, works } = parseSeriesPage(html, id);

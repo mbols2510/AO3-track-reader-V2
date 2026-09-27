@@ -14,8 +14,10 @@ export interface Prefs {
   readingListFilter: 'all' | 'unread' | 'complete' | 'favourites';
   readingListGroup: 'fandom' | 'none';
   collapsedGroups: string[];     // reading-list groups the user folded away
+  fandomNames: Record<string, string>; // AO3 fandom tag -> name the user chose for its group
   bounds: { x?: number; y?: number; width: number; height: number; maximized?: boolean };
   paneOpen: boolean;
+  skipUpdateVersion: string | null; // "Skip this version" in the update prompt
 }
 
 export interface AppState {
@@ -32,8 +34,8 @@ export const defaultState = (): AppState => ({
   prefs: {
     theme: 'system', fontSize: 100, fontScope: 'page', trackerUrl: '', trackerKey: '', refreshHours: 6,
     homeUrl: 'https://archiveofourown.org/', lastUrl: null, favourites: [],
-    readingListSort: 'unread', readingListFilter: 'all', readingListGroup: 'fandom', collapsedGroups: [],
-    bounds: { width: 1280, height: 860 }, paneOpen: true,
+    readingListSort: 'unread', readingListFilter: 'all', readingListGroup: 'fandom', collapsedGroups: [], fandomNames: {},
+    bounds: { width: 1280, height: 860 }, paneOpen: true, skipUpdateVersion: null,
   },
 });
 

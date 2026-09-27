@@ -90,6 +90,11 @@ export class TrackSyncClient {
     return this.call<WorkMap>('POST', '/Values', values);
   }
 
+  /** Reading positions deleted on the server since `after` ({ workid: deletedAt }). TrackSync 2.2+ only. */
+  deletedWorks(after = 0): Promise<Record<string, number>> {
+    return this.call<Record<string, number>>('GET', `/v2/deleted-works?after=${after}`);
+  }
+
   syncReadingList(body: ReadingListSync): Promise<ReadingListSync> {
     return this.call<ReadingListSync>('POST', '/ReadingList', body);
   }

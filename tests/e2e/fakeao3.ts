@@ -4,9 +4,13 @@ import { blurb, searchPage } from '../fixtures.ts';
 
 const paras = (n: number) => Array.from({ length: n }, (_, i) => `<p>Paragraph ${i} — ${'Lorem ipsum dolor sit amet. '.repeat(12)} It was 72 degrees Fahrenheit.</p>`).join('\n');
 
+/** Work 789 belongs to a fandom AO3 names in Chinese first (issue #9). */
+export const MDZS = '魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù';
+const fandomOf = (id: number) => (id === 789 ? MDZS : 'Good Omens');
+
 export const workPageHtml = (id: number, chapter: number, chapterId: number) => `<!DOCTYPE html><html><head><title>Work ${id} - Chapter ${chapter} | Archive of Our Own</title>
 <link rel="next" href="/works/${id}/chapters/${chapterId + 1}"></head><body><div id="outer"><div id="inner"><div id="main" class="chapters-show">
-<div class="work"><dl class="work meta group"><dd class="fandom tags"><a class="tag" href="/tags/Good%20Omens/works">Good Omens</a></dd>
+<div class="work"><dl class="work meta group"><dd class="fandom tags"><a class="tag" href="/tags/${encodeURIComponent(fandomOf(id))}/works">${fandomOf(id)}</a></dd>
 <dl class="stats"><dt class="chapters">Chapters:</dt><dd class="chapters">3/5</dd></dl></dl></div>
 <div id="workskin"><div class="preface group"><h2 class="title heading">Work ${id}</h2><h3 class="byline heading"><a rel="author" href="/users/writer/pseuds/writer">writer</a></h3></div>
 <div id="chapters"><div class="chapter" id="chapter-${chapter}"><div class="chapter preface group"><h3 class="title"><a href="/works/${id}/chapters/${chapterId}">Chapter ${chapter}</a>: The Middle</h3></div>
@@ -26,7 +30,7 @@ export function startFakeAo3(): Promise<{ server: Server; port: number; hits: st
     if (u.pathname === '/works' || u.pathname === '/works/search') {
       const q = u.searchParams.get('work_search[query]');
       const ids = q ? [...q.matchAll(/\d+/g)].map((x) => Number(x[0])) : [123, 456, 789];
-      return res.end(searchPage(ids.map((i) => blurb(i, { ch: '3/5', author: i === 456 ? 'blocked' : 'writer' }))));
+      return res.end(searchPage(ids.map((i) => blurb(i, { ch: '3/5', author: i === 456 ? 'blocked' : 'writer', fandom: fandomOf(i) }))));
     }
     m = u.pathname.match(/^\/series\/(\d+)$/);
     if (m) return res.end(`<html><body><div id="main"><h2 class="heading">Series ${m[1]}</h2><dl class="series meta group"><dt>Complete:</dt><dd>No</dd></dl><ul class="series work index group">${blurb(123, { ch: '3/5' })}</ul></div></body></html>`);

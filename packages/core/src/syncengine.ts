@@ -16,6 +16,8 @@ export interface SyncState {
   works: Record<string, StoredWorkChapter>;
   unsynced: string[];
   worksLastSync: number;
+  /** Newest server-side deletion of a reading position we've applied. */
+  deletedWorksLastSync: number;
   readingList: { last_sync: number; paths: Record<string, number> };
   listFilters: { last_sync: number; filters: Record<string, number> };
   /** Server clock minus local clock, so timestamps agree across devices. */
@@ -25,7 +27,7 @@ export interface SyncState {
 }
 
 export const emptySyncState = (): SyncState => ({
-  serverUrl: null, auth: null, works: {}, unsynced: [], worksLastSync: 0,
+  serverUrl: null, auth: null, works: {}, unsynced: [], worksLastSync: 0, deletedWorksLastSync: 0,
   readingList: { last_sync: 0, paths: {} }, listFilters: { last_sync: 0, filters: {} },
   timeOffset: 0, lastSyncAt: null, lastSyncError: null,
 });
@@ -79,6 +81,7 @@ export class SyncEngine {
     this.state.auth = { username, credential: r.credential };
     // A new account or server: send everything we have.
     this.state.worksLastSync = 0;
+    this.state.deletedWorksLastSync = 0;
     this.state.unsynced = Object.keys(this.state.works);
     this.state.readingList.last_sync = 0;
     this.state.listFilters.last_sync = 0;
@@ -196,9 +199,34 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * Forget positions deleted on the server (dashboard → Works tracked), unless we've read
+   * the work again since — then our newer position is pushed and tracking resumes.
+   * Servers without this endpoint (the original service, TrackSync < 2.2) are skipped.
+   */
+  private async applyDeletions(c: TrackSyncClient): Promise<boolean> {
+    const s = this.state;
+    let deleted: Record<string, number>;
+    try { deleted = await c.deletedWorks(s.deletedWorksLastSync ?? 0); } catch (e) {
+      if (e instanceof SyncHttpError && (e.status === 401 || e.status === 403)) throw e;
+      return false;
+    }
+    let changed = false;
+    for (const [key, at] of Object.entries(deleted ?? {})) {
+      if (at > (s.deletedWorksLastSync ?? 0)) s.deletedWorksLastSync = at;
+      const local = s.works[key];
+      if (local && local.timestamp <= at) {
+        delete s.works[key];
+        s.unsynced = s.unsynced.filter((k) => k !== key);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   private async syncWorks(c: TrackSyncClient, depth = 0): Promise<boolean> {
     const s = this.state;
-    let changed = false;
+    let changed = depth === 0 ? await this.applyDeletions(c) : false;
     const items = await c.getValues(s.worksLastSync);
     let lastSync = s.worksLastSync;
     for (const [key, item] of Object.entries(items)) {

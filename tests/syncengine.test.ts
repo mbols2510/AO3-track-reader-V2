@@ -74,3 +74,35 @@ test('rejected credentials sign the device out', async () => {
   assert.equal(r.ok, false);
   assert.equal(a.status, 'disabled');
 });
+
+test('a position deleted in the dashboard disappears from every device, and comes back if read again (#8)', async () => {
+  const pc = engine(), laptop = engine();
+  await pc.signIn(url, 'del', 'password1', true);
+  await laptop.signIn(url, 'del', 'password1');
+  pc.setWork(11, { number: 2, chapterid: 112, location: 500, seq: null });
+  pc.setWork(12, { number: 1, chapterid: 121, location: 0, seq: null });
+  await pc.sync(); await laptop.sync();
+  assert.ok(laptop.getWork(11));
+
+  // Dashboard: sign in like the web page does, list, delete.
+  const login = await fetch(`${url}/api/User/Login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'del', password: 'password1' }) });
+  const auth = { Authorization: `Ao3track ${btoa(`del\n${await login.json()}`)}`, 'Content-Type': 'application/json' };
+  const list = (await (await fetch(`${url}/api/v2/works`, { headers: auth })).json()) as { id: number; number: number }[];
+  assert.deepEqual(list.map((w) => w.id).sort(), [11, 12]);
+  const del = await fetch(`${url}/api/v2/works/delete`, { method: 'POST', headers: auth, body: JSON.stringify({ ids: [11] }) });
+  assert.deepEqual(await del.json(), { deleted: 1 });
+
+  await pc.sync(); await laptop.sync();
+  assert.equal(pc.getWork(11), undefined, 'forgotten on the PC');
+  assert.equal(laptop.getWork(11), undefined, 'forgotten on the laptop');
+  assert.ok(pc.getWork(12), 'other works untouched');
+  // A stale copy re-sent by an old app must not bring it back.
+  await fetch(`${url}/api/Values`, { method: 'POST', headers: auth, body: JSON.stringify({ 11: { chapterid: 112, number: 2, location: 500, timestamp: 1, seq: 0 } }) });
+  assert.equal(((await (await fetch(`${url}/api/v2/works`, { headers: auth })).json()) as unknown[]).length, 1);
+
+  // Reading it again later tracks it again, everywhere.
+  await new Promise((r) => setTimeout(r, 5));
+  laptop.setWork(11, { number: 1, chapterid: 111, location: 10, seq: null });
+  await laptop.sync(); await pc.sync();
+  assert.equal(pc.getWork(11)?.number, 1);
+});

@@ -116,6 +116,79 @@ function drawReadingList() {
 }
 $('#rl-filter').addEventListener('input', drawReadingList);
 
+// ---------- works tracked (reading positions) ----------
+let works = [];
+const selected = new Set();
+const SHOW = 500;
+async function refreshWorks() {
+  const list = await call('GET', '/v2/works');
+  const known = new Map(works.map((w) => [w.id, w]));
+  works = list.sort((a, b) => b.timestamp - a.timestamp)
+    .map((w) => ({ ...w, title: known.get(w.id)?.title ?? null, meta: known.get(w.id)?.meta ?? '', total: known.get(w.id)?.total }));
+  for (const id of [...selected]) if (!works.some((w) => w.id === id)) selected.delete(id);
+  drawWorks();
+  // Titles come from the tracker's cache (never from AO3 directly); optional.
+  const missing = works.filter((w) => w.title === null).map((w) => w.id);
+  try {
+    for (let i = 0; i < missing.length; i += 300) {
+      const r = await call('GET', `/v2/works-meta?ids=${missing.slice(i, i + 300).join(',')}`);
+      const byId = new Map((r.works ?? []).map((m) => [m.workid, m]));
+      for (const w of works) {
+        const m = byId.get(w.id);
+        if (m) { w.title = m.title; w.meta = [m.authors?.join(', '), m.fandoms?.[0]].filter(Boolean).join(' · '); w.total = m.chaptersPublished; }
+      }
+      drawWorks();
+    }
+  } catch { /* tracker is optional */ }
+}
+const shownWorks = () => {
+  const q = $('#w-filter').value.trim().toLowerCase();
+  return works.filter((w) => !q || `${w.title ?? ''} ${w.meta} ${w.id}`.toLowerCase().includes(q));
+};
+function drawWorks() {
+  const ul = $('#works');
+  ul.replaceChildren();
+  const items = shownWorks();
+  $('#w-delete').disabled = !selected.size;
+  $('#w-delete').textContent = selected.size ? `Delete selected (${selected.size})` : 'Delete selected';
+  $('#w-delete').classList.toggle('danger', !!selected.size);
+  const vis = items.slice(0, SHOW);
+  $('#w-all').checked = vis.length > 0 && vis.every((w) => selected.has(w.id));
+  if (!items.length) { ul.innerHTML = `<li class="empty">${works.length ? 'Nothing matches.' : 'No reading positions yet.'}</li>`; return; }
+  for (const w of vis) {
+    const li = document.createElement('li');
+    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', checked: selected.has(w.id), title: 'Select' });
+    cb.addEventListener('change', () => { if (cb.checked) selected.add(w.id); else selected.delete(w.id); drawWorks(); });
+    const a = Object.assign(document.createElement('a'), { href: `https://archiveofourown.org/works/${w.id}`, target: '_blank', rel: 'noopener', className: 't', textContent: w.title ?? `Work ${w.id}` });
+    const where = w.location === null ? `Finished chapter ${w.number}` : `Chapter ${w.number}`;
+    const m = Object.assign(document.createElement('div'), { className: 'm', textContent: [`${where}${w.total ? ` of ${w.total}` : ''}`, w.meta].filter(Boolean).join(' · ') });
+    const left = document.createElement('div'); left.append(a, m);
+    const when = Object.assign(document.createElement('span'), { className: 'when', textContent: new Date(w.timestamp).toLocaleDateString(), title: 'Last read' });
+    const del = Object.assign(document.createElement('button'), { className: 'ghost del', textContent: 'Delete', title: 'Forget this reading position' });
+    del.addEventListener('click', () => deleteWorks([w.id]));
+    li.append(cb, left, when, del);
+    ul.append(li);
+  }
+  if (items.length > SHOW) ul.insertAdjacentHTML('beforeend', `<li class="more">Showing the ${SHOW} most recently read of ${items.length}. Use the filter to find others.</li>`);
+}
+async function deleteWorks(ids) {
+  const names = ids.length === 1 ? `“${works.find((w) => w.id === ids[0])?.title ?? `Work ${ids[0]}`}”` : `${ids.length} works`;
+  if (!confirm(`Forget your reading position in ${names}? This removes it from every device at their next sync.`)) return;
+  const o = $('#w-out');
+  try {
+    const r = await call('POST', '/v2/works/delete', { ids });
+    for (const id of ids) selected.delete(id);
+    out(o, `Deleted ${r.deleted} ${r.deleted === 1 ? 'position' : 'positions'}.`);
+    await Promise.all([refreshStats(), refreshWorks()]);
+  } catch (err) { out(o, err.message, false); }
+}
+$('#w-filter').addEventListener('input', drawWorks);
+$('#w-all').addEventListener('change', (e) => {
+  for (const w of shownWorks().slice(0, SHOW)) { if (e.target.checked) selected.add(w.id); else selected.delete(w.id); }
+  drawWorks();
+});
+$('#w-delete').addEventListener('click', () => selected.size && deleteWorks([...selected]));
+
 $('#form-migrate').addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.currentTarget, btn = form.querySelector('button[type=submit]');
@@ -125,7 +198,7 @@ $('#form-migrate').addEventListener('submit', async (e) => {
     const r = await call('POST', '/v2/migrate', Object.fromEntries(new FormData(form)));
     out(o, `Found ${r.found.works} works, ${r.found.readingList} reading-list entries and ${r.found.listFilters} filters.\n${fmtCounts(r.imported)}`);
     form.reset();
-    await Promise.all([refreshStats(), refreshReadingList()]);
+    await Promise.all([refreshStats(), refreshReadingList(), refreshWorks()]);
   } catch (err) { out(o, err.message, false); }
   finally { busy(btn, false); }
 });
@@ -139,7 +212,7 @@ $('#form-legacydb').addEventListener('submit', async (e) => {
     const r = await call('POST', '/v2/import-legacy-db', new FormData(form), true);
     out(o, `Found ${r.found.works} works and ${r.found.readingList} reading-list entries.\n${fmtCounts(r.imported)}`);
     form.reset();
-    await Promise.all([refreshStats(), refreshReadingList()]);
+    await Promise.all([refreshStats(), refreshReadingList(), refreshWorks()]);
   } catch (err) { out(o, err.message, false); }
   finally { busy(btn, false); }
 });
@@ -156,7 +229,7 @@ $('#import-file').addEventListener('change', async (e) => {
   try {
     const r = await call('POST', '/v2/import', JSON.parse(await f.text()));
     out(o, fmtCounts(r.imported));
-    await Promise.all([refreshStats(), refreshReadingList()]);
+    await Promise.all([refreshStats(), refreshReadingList(), refreshWorks()]);
   } catch (err) { out(o, err.message, false); }
   e.target.value = '';
 });
@@ -188,6 +261,6 @@ async function render() {
   $('#who').hidden = !auth;
   if (!auth) return;
   $('#who-name').textContent = auth.username;
-  try { await Promise.all([refreshStats(), refreshReadingList()]); } catch { /* handled in call() */ }
+  try { await Promise.all([refreshStats(), refreshReadingList(), refreshWorks()]); } catch { /* handled in call() */ }
 }
 render();

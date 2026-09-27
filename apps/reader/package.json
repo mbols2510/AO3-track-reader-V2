@@ -1,7 +1,7 @@
 {
   "name": "archive-track-reader",
   "productName": "Archive Track Reader",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Desktop reader for Archive of Our Own with location tracking, reading list and self-hosted sync",
   "author": "Ao3Track contributors",
   "license": "Apache-2.0",

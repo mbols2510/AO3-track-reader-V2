@@ -1,5 +1,5 @@
 /* The app chrome: toolbar, reading list and settings. Talks to main only via window.ao3. */
-import type { ReaderSettings } from '@ao3track/core';
+import { fandomDisplayName, type ReaderSettings } from '@ao3track/core';
 import type { ReadingListItem, RefreshStatus } from '../main/readinglist.ts';
 import type { Prefs } from '../main/state.ts';
 
@@ -159,16 +159,16 @@ api.on('togglePane', () => setPane(document.body.classList.contains('pane-closed
 
 // ---------------------------------------------------------------- rate limit banner
 let bannerTimer: number | undefined;
+// Only shown when AO3 blocks the page you're reading; background pauses stay in the
+// reading list's status line.
 api.on('rateLimited', (r: { until: number | null; fromBrowsing: boolean }) => {
-  if (!r.until) return;
+  if (!r.until || !r.fromBrowsing) return;
   const b = $('#banner');
   const update = () => {
     const left = r.until! - Date.now();
     if (left <= 0) { b.hidden = true; clearInterval(bannerTimer); return; }
     const mins = Math.ceil(left / 60_000);
-    $('#banner-text').textContent = r.fromBrowsing
-      ? `AO3 is asking this connection to slow down (“Retry later”). Background updates are paused for about ${mins} min — reload the page after that.`
-      : `AO3 asked us to slow down. Reading-list updates will resume in about ${mins} min; browsing is unaffected unless AO3 shows “Retry later”.`;
+    $('#banner-text').textContent = `AO3 is asking this connection to slow down (“Retry later”). Background updates are paused for about ${mins} min — reload the page after that.`;
   };
   b.hidden = false;
   update();
@@ -207,7 +207,7 @@ function renderList() {
     if (prefs.readingListFilter === 'unread' && !(i.unread && i.unread > 0)) return false;
     if (prefs.readingListFilter === 'complete' && !i.complete) return false;
     if (prefs.readingListFilter === 'favourites' && !i.favourite) return false;
-    return !q || `${i.title} ${i.authors.join(' ')} ${i.fandoms.join(' ')} ${i.detail}`.toLowerCase().includes(q);
+    return !q || `${i.title} ${i.authors.join(' ')} ${i.fandoms.join(' ')} ${i.fandoms.map(fandomLabel).join(' ')} ${i.detail}`.toLowerCase().includes(q);
   });
   const by: Record<Prefs['readingListSort'], (a: ReadingListItem, b: ReadingListItem) => number> = {
     unread: (a, b) => (b.unread ?? -1) - (a.unread ?? -1) || parseDate(b.updated) - parseDate(a.updated),
@@ -248,12 +248,14 @@ function renderList() {
     const unread = g.items.reduce((n, i) => n + (i.unread && i.kind !== 'other' ? i.unread : 0), 0);
     const head = h('button', { class: 'group-head', title: open ? 'Collapse' : 'Expand' },
       h('i', { class: 'chev' }),
-      h('span', { class: 'name', textContent: g.name, title: g.name } as never),
+      h('span', { class: 'name', textContent: g.label, title: g.label === g.name ? g.name : `${g.label}\nOn AO3: ${g.name}` } as never),
       h('span', { class: 'n', textContent: String(g.items.length) }),
       unread ? h('span', { class: 'tag new', textContent: `${unread} unread` }) : null,
     );
     head.querySelector('.chev')!.innerHTML = `<svg viewBox="0 0 24 24">${ICONS.chevron}</svg>`;
     head.setAttribute('aria-expanded', String(open));
+    head.dataset.group = g.name;
+    head.oncontextmenu = (e) => { e.preventDefault(); void api.invoke('ui:groupMenu', g.name, !FIXED_GROUPS.includes(g.name)); };
     head.onclick = () => {
       const next = new Set(prefs.collapsedGroups);
       if (next.has(g.name)) next.delete(g.name); else next.add(g.name);
@@ -270,7 +272,10 @@ function renderList() {
 const G_LISTINGS = 'Tags, listings & searches';
 const G_PENDING = 'Waiting for details';
 const G_MISSING = 'Unavailable on AO3';
-interface Group { name: string; items: ReadingListItem[] }
+const FIXED_GROUPS = [G_LISTINGS, G_PENDING, G_MISSING];
+/** `name` is the AO3 fandom tag (stable, used for folding); `label` is what's shown. */
+interface Group { name: string; label: string; items: ReadingListItem[] }
+const fandomLabel = (f: string) => fandomDisplayName(f, prefs?.fandomNames ?? {});
 let lastGroups: Group[] = [];
 
 function groupItems(list: ReadingListItem[]): Group[] {
@@ -286,13 +291,39 @@ function groupItems(list: ReadingListItem[]): Group[] {
   for (const i of list) { const g = groupOf(i); if (!map.has(g)) map.set(g, []); map.get(g)!.push(i); }
   const tail = [G_LISTINGS, G_PENDING, G_MISSING];
   return [...map.entries()]
-    .map(([name, its]) => ({ name, items: its }))
+    .map(([name, its]) => ({ name, label: tail.includes(name) ? name : fandomLabel(name), items: its }))
     .sort((a, b) => {
       const ta = tail.indexOf(a.name), tb = tail.indexOf(b.name);
       if (ta !== tb) return ta - tb; // fandoms (-1) first, then the fixed groups in order
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+      return a.label.localeCompare(b.label, undefined, { sensitivity: 'base', numeric: true });
     });
 }
+
+// Right-click a group → Rename group…: edit the name in place (Enter saves, Esc cancels, empty = automatic).
+api.on('renameGroup', (name: string) => {
+  const head = $$('.group-head').find((x) => x.dataset.group === name);
+  if (!head) return;
+  const input = h('input', { class: 'rename', value: fandomLabel(name), placeholder: fandomDisplayName(name), title: `On AO3: ${name}` });
+  input.setAttribute('aria-label', 'Group name');
+  head.replaceWith(h('div', { class: 'group-head renaming' }, input));
+  input.focus(); input.select();
+  let done = false;
+  const finish = (save: boolean) => {
+    if (done) return;
+    done = true;
+    if (save) {
+      const v = input.value.trim();
+      const next = { ...prefs.fandomNames };
+      if (v && v !== fandomDisplayName(name)) next[name] = v; else delete next[name];
+      prefs.fandomNames = next;
+      void api.invoke('ui:prefs', { fandomNames: next });
+    }
+    renderList();
+  };
+  input.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+});
+
 
 function card(i: ReadingListItem) {
   const pct = i.chaptersPublished ? Math.min(100, (i.chaptersRead / i.chaptersPublished) * 100) : 0;
@@ -309,7 +340,7 @@ function card(i: ReadingListItem) {
     if (!i.complete) tags.push(h('span', { class: 'tag' }, i.chaptersTotal ? `WIP · ${i.chaptersPublished}/${i.chaptersTotal}` : 'WIP'));
   }
   if (i.missing) tags.push(h('span', { class: 'tag gone', title: 'AO3 did not return this work — it may be deleted, hidden, or restricted to logged-in users.' }, 'Unavailable'));
-  if (i.kind === 'work' && i.fetchedAt === null && !i.missing) tags.push(h('span', { class: 'tag' }, 'Checking…'));
+  if (i.kind === 'work' && i.fetchedAt === null && !i.missing) tags.push(h('span', { class: 'tag', title: 'Press ⟳ to check now' }, 'Not checked yet'));
 
   const fav = h('button', { class: `fav${i.favourite ? ' on' : ''}`, title: i.favourite ? 'Unfavourite' : 'Favourite (pins to top)', textContent: i.favourite ? '★' : '☆' });
   fav.onclick = (e) => { e.stopPropagation(); void api.invoke('ui:readingList:favourite', i.key); };
@@ -326,7 +357,7 @@ function card(i: ReadingListItem) {
   const el = h('li', { class: 'card', tabIndex: 0, title: i.kind === 'other' ? i.url : i.summary.slice(0, 400) },
     fav,
     h('div', { class: 't' }, i.title),
-    h('div', { class: 'by' }, i.kind === 'other' ? i.detail || (/\/tags\/|[?&]tag_id=/.test(i.key) ? 'All works' : '') : [i.authors.join(', '), i.fandoms.slice(0, 2).join(', ')].filter(Boolean).join(' · ') || (i.kind === 'series' ? 'Series' : '')),
+    h('div', { class: 'by' }, i.kind === 'other' ? i.detail || (/\/tags\/|[?&]tag_id=/.test(i.key) ? 'All works' : '') : [i.authors.join(', '), i.fandoms.slice(0, 2).map(fandomLabel).join(', ')].filter(Boolean).join(' · ') || (i.kind === 'series' ? 'Series' : '')),
     i.kind === 'work' && i.chaptersPublished ? h('div', { class: `bar${pct >= 100 ? ' full' : ''}` }, h('i', { style: `width:${pct}%` } as never)) : null,
     h('div', { class: 'meta' }, ...tags, i.updated ? h('span', { class: 'when' }, i.updated) : null),
     actions,
@@ -351,7 +382,7 @@ api.on('refreshStatus', (s: RefreshStatus) => {
   st.classList.remove('warn');
   const paused = s.limiter?.pausedUntil;
   if (paused) {
-    st.textContent = `AO3 asked us to wait — resuming at ${new Date(paused).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    st.textContent = `Updates paused by AO3 until ${new Date(paused).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${s.mode === 'tracker' ? ' (tracker)' : ''}`;
     st.classList.add('warn');
   } else if (s.running) {
     const q = s.pending || (s.limiter ? s.limiter.queuedHigh + s.limiter.queuedLow : 0);
@@ -468,6 +499,10 @@ api.on('state', (st: { sync: any; settings: ReaderSettings; prefs: Prefs; filter
   if (document.activeElement !== trackerUrl) trackerUrl.value = prefs.trackerUrl;
   if (document.activeElement !== trackerKey) trackerKey.value = prefs.trackerKey ?? '';
   $<HTMLSelectElement>('#refresh-hours').value = String(prefs.refreshHours);
+  // With a tracker, the container checks AO3 on its own schedule (REFRESH_INTERVAL_HOURS).
+  const viaTracker = !!prefs.trackerUrl.trim();
+  $('#refresh-hours-row').hidden = viaTracker;
+  $('#refresh-tracker-note').hidden = !viaTracker;
   const ul = $('#filters');
   ul.replaceChildren();
   if (!st.filters.length) ul.append(h('li', { class: 'none' }, 'None yet.'));
@@ -484,4 +519,16 @@ api.on('state', (st: { sync: any; settings: ReaderSettings; prefs: Prefs; filter
   renderList();
 });
 
+$('#check-update').onclick = async (e) => {
+  const out = $('#update-out');
+  out.className = 'small'; out.textContent = '';
+  const r = await busy(e.currentTarget as HTMLButtonElement, 'Checking…', () => api.invoke<{ state: string; error?: string }>('ui:checkUpdate'));
+  const msg: Record<string, string> = {
+    'no-tracker': 'Updates are checked through your tracker — set it up above first.',
+    'not-configured': 'Your tracker isn\'t set up to check for updates yet (GITHUB_TOKEN in its .env).',
+    'up-to-date': 'You have the latest version.',
+  };
+  if (r.state === 'error') { out.className = 'small bad'; out.textContent = `Couldn't check: ${r.error}`; }
+  else if (msg[r.state]) { out.className = `small${r.state === 'up-to-date' ? ' ok' : ''}`; out.textContent = msg[r.state]; }
+};
 void api.invoke<string>('ui:version').then((v) => ($('#version').textContent = v));

@@ -9,6 +9,7 @@ import { parseWorkBlurbs, parseWorkPage } from '@ao3track/core/parse';
 import { JsonStore } from './jsonstore.ts';
 import { defaultState, defaultMeta, type AppState, type MetaCacheFile, type Prefs } from './state.ts';
 import { ReadingListService } from './readinglist.ts';
+import { checkForUpdate } from './updater.ts';
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -357,6 +358,20 @@ function wireIpc() {
     pushState();
     page.webContents.reload(); // page script reads settings at load
   });
+  ipcMain.handle('ui:groupMenu', (_e, name: string, renamable: boolean) => {
+    if (!renamable) return;
+    const custom = !!prefs().fandomNames?.[name];
+    Menu.buildFromTemplate([
+      { label: 'Rename group…', click: () => toUi('renameGroup', name) },
+      { label: 'Reset name', enabled: custom, click: () => {
+        const next = { ...prefs().fandomNames };
+        delete next[name];
+        prefs().fandomNames = next;
+        store.save();
+        pushState();
+      } },
+    ]).popup({ window: win });
+  });
   ipcMain.handle('ui:removeFilter', (_e, f: string) => { engine.removeFilter(f); pushState(); scheduleSync(3000); });
 
   ipcMain.handle('ui:signIn', async (_e, a: { server: string; username: string; password: string; create?: boolean; email?: string }) => {
@@ -393,7 +408,7 @@ function wireIpc() {
     if (r.canceled || !r.filePath) return false;
     const s = engine.state;
     const { writeFileSync } = await import('node:fs');
-    writeFileSync(r.filePath, JSON.stringify({ format: 'ao3track-export', version: 1, source: 'desktop', username: s.auth?.username ?? '', exportedAt: new Date().toISOString(), works: s.works, readingList: s.readingList.paths, listFilters: s.listFilters.filters, favourites: prefs().favourites }, null, 1));
+    writeFileSync(r.filePath, JSON.stringify({ format: 'ao3track-export', version: 1, source: 'desktop', username: s.auth?.username ?? '', exportedAt: new Date().toISOString(), works: s.works, readingList: s.readingList.paths, listFilters: s.listFilters.filters, favourites: prefs().favourites, fandomNames: prefs().fandomNames }, null, 1));
     return true;
   });
   ipcMain.handle('ui:importFile', async () => {
@@ -402,10 +417,13 @@ function wireIpc() {
     const data = JSON.parse(readFileSync(r.filePaths[0], 'utf8'));
     if (data?.format !== 'ao3track-export') return { ok: false, error: 'Not an Ao3Track backup file.' };
     if (Array.isArray(data.favourites)) prefs().favourites = [...new Set([...prefs().favourites, ...data.favourites])];
+    // Group names chosen on this PC win over ones from the backup.
+    if (data.fandomNames && typeof data.fandomNames === 'object') prefs().fandomNames = { ...data.fandomNames, ...prefs().fandomNames };
     return { ok: true, ...importIntoEngine(data.works ?? {}, data.readingList ?? {}, data.listFilters ?? {}) };
   });
   ipcMain.handle('ui:openExternal', (_e, url: string) => shell.openExternal(url));
   ipcMain.handle('ui:version', () => app.getVersion());
+  ipcMain.handle('ui:checkUpdate', () => checkForUpdate(win, prefs, () => store.save(), { manual: true, toast: (t) => toUi('toast', t) }));
 }
 
 /** Merge exported data locally; everything added gets a fresh timestamp so sync treats it as new. */
@@ -443,10 +461,9 @@ app.whenReady().then(() => {
   // Background lookups share the reader's AO3 cookies, so restricted works resolve when logged in.
   rl = new ReadingListService(engine, meta, prefs, (url, init) => ao3Session.fetch(url, init));
   rl.on('changed', pushReadingList);
-  rl.on('status', (s) => {
-    toUi('refreshStatus', s);
-    if (s.limiter?.pausedUntil) toUi('rateLimited', { until: s.limiter.pausedUntil, fromBrowsing: false });
-  });
+  // Background pauses only show as a quiet line in the reading list; the banner is
+  // reserved for when AO3 blocks the page you're reading (see 'page:rateLimited').
+  rl.on('status', (s) => toUi('refreshStatus', s));
   nativeTheme.on('updated', applyTheme);
 
   wireIpc();
@@ -454,6 +471,12 @@ app.whenReady().then(() => {
   rl.startSchedule();
   setInterval(() => void engine.sync().then(pushState), 30 * 60_000);
   setTimeout(() => void engine.sync().then(() => { pushState(); pushReadingList(); }), 2_000);
+  // Update check (via the tracker): shortly after start, then daily while left open.
+  if (app.isPackaged || process.env.AO3TRACK_UPDATE_CHECK) {
+    const auto = () => void checkForUpdate(win, prefs, () => store.save(), { manual: false, toast: (t) => toUi('toast', t) });
+    setTimeout(auto, 15_000);
+    setInterval(auto, 24 * 3600_000);
+  }
 });
 
 app.on('before-quit', () => { store?.flush(); meta?.flush(); });

@@ -2,7 +2,7 @@
 # Domain must use Cloudflare DNS. Public hostnames are set in the Cloudflare dashboard:
 #   sync.<domain>    -> http://tracksync:8080
 #   tracker.<domain> -> http://tracker:8081
-#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
 services:
   tracksync:
     environment:

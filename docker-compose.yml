@@ -1,12 +1,15 @@
 name: ao3track
 
-# Quick start:  cp .env.example .env  (set INTERNAL_TOKEN)  →  docker compose up -d --build
+# Quick start:  cp .env.example .env  (set INTERNAL_TOKEN)  →  docker compose up -d
+# Update:       docker compose pull && docker compose up -d
 # Dashboard:    http://localhost:8080      Tracker status: http://localhost:8081/api/status
+#
+# Uses the ready-made images from GitHub (AO3TRACK_VERSION in .env: "latest" by default,
+# or pin one such as 2.2.0). To build from source instead, add -f docker-compose.build.yml.
 
 services:
   tracksync:
-    build: { context: ., target: tracksync }
-    image: ao3track/tracksync:2.1.0
+    image: ${AO3TRACK_IMAGES:-ghcr.io/mbols2510}/ao3track-tracksync:${AO3TRACK_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKSYNC_PORT:-8080}:8080"
@@ -24,8 +27,7 @@ services:
       - tracksync-data:/data
 
   tracker:
-    build: { context: ., target: tracker }
-    image: ao3track/tracker:2.1.0
+    image: ${AO3TRACK_IMAGES:-ghcr.io/mbols2510}/ao3track-tracker:${AO3TRACK_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${TRACKER_PORT:-8081}:8081"
@@ -34,9 +36,9 @@ services:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       TRACKSYNC_URL: http://tracksync:8080
-      # How gently to treat AO3 (defaults ≈ 10 requests/minute, one at a time).
-      RATE_BURST: ${RATE_BURST:-3}
-      RATE_REFILL_SECONDS: ${RATE_REFILL_SECONDS:-6}
+      # How gently to treat AO3 (defaults ≈ 5 requests/minute, one at a time).
+      RATE_BURST: ${RATE_BURST:-2}
+      RATE_REFILL_SECONDS: ${RATE_REFILL_SECONDS:-12}
       RATE_MIN_INTERVAL_SECONDS: ${RATE_MIN_INTERVAL_SECONDS:-2}
       RATE_PAUSE_MINUTES: ${RATE_PAUSE_MINUTES:-5}
       CACHE_TTL_HOURS: ${CACHE_TTL_HOURS:-6}
@@ -44,6 +46,9 @@ services:
       USER_AGENT: ${USER_AGENT:-Ao3Track/2.0 (self-hosted personal reading tracker)}
       AO3_COOKIE: ${AO3_COOKIE:-}
       API_KEY: ${TRACKER_API_KEY:-}
+      # Lets desktop readers find and download new versions (read-only token; see .env.example).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-mbols2510/AO3-track-reader-V2}
     volumes:
       - tracker-data:/data
     depends_on:

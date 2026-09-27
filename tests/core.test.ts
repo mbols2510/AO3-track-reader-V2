@@ -60,7 +60,7 @@ test('parses AO3 blurbs and work pages', () => {
   assert.match(searchUrlForIds([1, 2]), /id%3A%281\+OR\+2%29/);
 });
 
-test('rate limiter pauses on 429 and honours Retry-After', async () => {
+test('rate limiter pauses on 429 (Retry-After or at least 5 minutes)', async () => {
   let now = 0;
   const sleeps: number[] = [];
   const limiter = new Ao3RateLimiter({ now: () => now, sleep: async (ms) => { sleeps.push(ms); now += ms; }, burst: 2, refillMs: 6000, minIntervalMs: 2000 });
@@ -76,9 +76,30 @@ test('rate limiter pauses on 429 and honours Retry-After', async () => {
   const html = await client.getHtml('/works/1');
   assert.equal(html, '<html>ok</html>');
   assert.equal(calls, 2);
-  assert.ok(now >= 125_000, `waited for Retry-After (+slack), now=${now}`);
+  assert.ok(now >= 300_000, `waited at least 5 minutes, now=${now}`);
   assert.equal(limiter.status().totalRateLimited, 1);
   assert.equal(parseRetryAfter('30'), 30_000);
+});
+
+test('a short Retry-After still pauses at least 5 minutes (#6)', () => {
+  let now = 0;
+  const limiter = new Ao3RateLimiter({ now: () => now });
+  // AO3 typically says "retry in 60 seconds"; going back that soon tends to trip it again.
+  assert.equal(limiter.reportRateLimited(60_000) - now, 5 * 60_000);
+  // Repeats double, as without Retry-After.
+  assert.equal(limiter.reportRateLimited(60_000) - now, 10 * 60_000);
+  // A Retry-After longer than the backoff is honoured (plus slack).
+  const l2 = new Ao3RateLimiter({ now: () => now });
+  assert.equal(l2.reportRateLimited(15 * 60_000) - now, 15 * 60_000 + 5_000);
+});
+
+test('default pace is about 5 requests a minute (#6)', async () => {
+  let now = 0;
+  const limiter = new Ao3RateLimiter({ now: () => now, sleep: async (ms) => { now += ms; } });
+  const starts: number[] = [];
+  await Promise.all(Array.from({ length: 7 }, () => limiter.schedule(async () => { starts.push(now); })));
+  // Burst of 2, then one every 12 s: 7 requests take at least 60 s.
+  assert.ok(starts[6] - starts[0] >= 60_000, `sustained rate ≈ 5/min: ${starts}`);
 });
 
 test('rate limiter gives up after repeated 429s and backs off exponentially', async () => {
@@ -185,4 +206,24 @@ test('listingTitle names tag listings, filtered fandom listings, searches and us
     'with Fluff, Angst · excluding Death · 10000+ words · sorted by kudos',
   );
   assert.equal(listingFilters(cases[4][0]), '');
+});
+
+test('fandom display names: English part for non-Latin originals, user names win (#9)', async () => {
+  const { fandomDisplayName, autoFandomName } = await import('../packages/core/src/index.ts');
+  assert.equal(autoFandomName('魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù'), 'Módào Zǔshī - Mòxiāng Tóngxiù');
+  assert.equal(autoFandomName('鬼滅の刃 | Demon Slayer: Kimetsu no Yaiba (Anime)'), 'Demon Slayer: Kimetsu no Yaiba (Anime)');
+  assert.equal(autoFandomName('Мастер и Маргарита | The Master and Margarita'), 'The Master and Margarita');
+  assert.equal(autoFandomName('Harry Potter - J. K. Rowling'), 'Harry Potter - J. K. Rowling', 'no "|": unchanged');
+  assert.equal(autoFandomName('Les Misérables | Les Mis (Musical)'), 'Les Misérables | Les Mis (Musical)', 'Latin original: unchanged');
+  assert.equal(autoFandomName('天官赐福 | 天官賜福'), '天官赐福 | 天官賜福', 'no English part: unchanged');
+  assert.equal(fandomDisplayName('天官赐福 | 天官賜福', { '天官赐福 | 天官賜福': 'Heaven Official\'s Blessing' }), 'Heaven Official\'s Blessing');
+  assert.equal(fandomDisplayName('魔道祖师 - 墨香铜臭 | Módào Zǔshī', { '魔道祖师 - 墨香铜臭 | Módào Zǔshī': '  ' }), 'Módào Zǔshī', 'blank rename = automatic');
+});
+
+test('version comparison for the update check (#5)', async () => {
+  const { isNewerVersion } = await import('../packages/core/src/index.ts');
+  assert.ok(isNewerVersion('2.2.0', '2.1.0'));
+  assert.ok(isNewerVersion('v2.10.0', '2.9.1'));
+  assert.ok(!isNewerVersion('2.1.0', '2.1.0'));
+  assert.ok(!isNewerVersion('2.0.9', '2.1.0'));
 });

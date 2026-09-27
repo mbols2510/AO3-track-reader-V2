@@ -142,30 +142,43 @@ export class ReadingListService extends EventEmitter {
   }
 
   // ---- refresh ----
+  /**
+   * With a tracker, the tracker container checks AO3 on its own schedule (even while
+   * the reader is closed), so the reader only reads its results. Without one, the
+   * reader checks AO3 itself every `refreshHours`.
+   */
   startSchedule() {
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => {
+      if (this.mode === 'tracker') { void this.refresh(false); return; }
       const h = this.prefs().refreshHours;
       if (h > 0 && (!this.lastRefresh || Date.now() - this.lastRefresh > h * 3600_000)) void this.refresh(false);
     }, 10 * 60_000);
     setTimeout(() => void this.refresh(false), 20_000);
   }
 
-  /** Refresh stale entries (or specific keys). `manual` bumps priority, never the rate. */
+  /**
+   * Refresh stale entries (or specific keys). `manual` (the ⟳ button, adding an entry)
+   * checks AO3 now: it bumps priority, never the rate. Background refreshes in tracker
+   * mode only read what the tracker already has and never cause AO3 requests.
+   */
   async refresh(manual: boolean, onlyKeys?: string[]) {
     if (this.running) return;
     this.running = true;
     this.lastError = null;
+    const cacheOnly = !manual && this.mode === 'tracker';
     const ttl = manual ? 15 * 60_000 : TTL;
     const items = this.items().filter((i) => !onlyKeys || onlyKeys.includes(i.key));
     const now = Date.now();
-    const stale = (at: number | null | undefined) => !at || now - at > ttl;
+    // Reading the tracker's cache is free, so then ask for everything: it may have newer data.
+    const stale = (at: number | null | undefined) => cacheOnly || !at || now - at > ttl;
     const workIds = items.filter((i) => i.kind === 'work' && stale(i.fetchedAt ?? this.meta.data.missing[i.id!])).map((i) => i.id!);
     const seriesIds = items.filter((i) => i.kind === 'series' && stale(i.fetchedAt)).map((i) => i.id!);
-    this.pending = workIds.length + seriesIds.length;
+    this.pending = cacheOnly ? 0 : workIds.length + seriesIds.length;
     this.emit('status', this.status());
     try {
-      if (this.mode === 'tracker') await this.viaTracker(workIds, seriesIds, manual);
+      if (cacheOnly) await this.fromTrackerCache(workIds, seriesIds);
+      else if (this.mode === 'tracker') await this.viaTracker(workIds, seriesIds, manual);
       else await this.direct(workIds, seriesIds, manual);
       this.lastRefresh = Date.now();
     } catch (e) {
@@ -176,6 +189,34 @@ export class ReadingListService extends EventEmitter {
       this.meta.save();
       this.emit('changed');
       this.emit('status', this.status());
+    }
+  }
+
+  private trackerBase() {
+    const key = this.prefs().trackerKey.trim();
+    return { base: this.prefs().trackerUrl.trim().replace(/\/+$/, ''), auth: (key ? { 'X-Api-Key': key } : {}) as Record<string, string> };
+  }
+
+  /** Take whatever the tracker has cached. The tracker never contacts AO3 for these calls. */
+  private async fromTrackerCache(workIds: number[], seriesIds: number[]) {
+    const { base, auth } = this.trackerBase();
+    for (const s of seriesIds) {
+      const r = await fetch(`${base}/api/series/${s}?cacheOnly=1`, { headers: auth });
+      if (r.status === 401) throw new Error('The tracker needs an API key — add it in Settings.');
+      if (r.ok) this.meta.data.series[s] = await r.json();
+    }
+    for (let i = 0; i < workIds.length; i += 500) {
+      const r = await fetch(`${base}/api/works`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ ids: workIds.slice(i, i + 500), cacheOnly: true }),
+      });
+      if (r.status === 401) throw new Error('The tracker needs an API key — add it in Settings.');
+      if (!r.ok) throw new Error(`Tracker returned HTTP ${r.status}`);
+      const body = (await r.json()) as { works: WorkMeta[]; missing: number[]; limiter: LimiterStatus };
+      this.trackerLimiter = body.limiter;
+      // Only take entries the tracker has fresher than ours (the reader may have seen the page itself).
+      this.ingestWorks(body.works.filter((w) => (w.fetchedAt ?? 0) >= (this.meta.data.works[w.workid]?.fetchedAt ?? 0)));
+      for (const id of body.missing) if (!this.meta.data.works[id]) this.meta.data.missing[id] = Date.now();
     }
   }
 
@@ -196,9 +237,7 @@ export class ReadingListService extends EventEmitter {
   }
 
   private async viaTracker(workIds: number[], seriesIds: number[], manual: boolean) {
-    const base = this.prefs().trackerUrl.trim().replace(/\/+$/, '');
-    const key = this.prefs().trackerKey.trim();
-    const auth: Record<string, string> = key ? { 'X-Api-Key': key } : {};
+    const { base, auth } = this.trackerBase();
     for (const s of seriesIds) {
       const r = await fetch(`${base}/api/series/${s}${manual ? '?priority=high' : ''}`, { headers: auth });
       if (r.status === 401) throw new Error('The tracker needs an API key — add it in Settings.');

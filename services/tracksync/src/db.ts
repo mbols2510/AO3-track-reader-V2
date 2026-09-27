@@ -56,6 +56,15 @@ export function openDb(path: string): Db {
       PRIMARY KEY (userid, id)
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS works_ts ON works (userid, timestamp);
+    -- Reading positions deleted from the dashboard, so the apps can forget them too
+    -- (the original protocol has no deletions for works). Cleared if the work is read again.
+    CREATE TABLE IF NOT EXISTS deleted_works (
+      userid INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      id INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL,
+      PRIMARY KEY (userid, id)
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS deleted_works_ts ON deleted_works (userid, timestamp);
     CREATE TABLE IF NOT EXISTS reading_list (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userid INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

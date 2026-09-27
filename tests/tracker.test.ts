@@ -64,3 +64,51 @@ test('tracker stops hitting AO3 once rate limited', async () => {
   assert.equal(s.limiter.totalRateLimited, 1);
   await app.close();
 });
+
+test('cacheOnly reads never contact AO3, even for stale or unknown works (#7)', async () => {
+  const ao3 = fakeAo3();
+  const app = await buildApp(cfg(), ao3.fetch);
+  await app.inject({ url: '/api/works?ids=1,2&wait=5' });
+  assert.equal(ao3.calls.length, 1);
+  // maxAge=0 makes everything stale; 99 is unknown. Neither may cause a request.
+  const r = await app.inject({ method: 'POST', url: '/api/works', payload: { ids: [1, 2, 99], cacheOnly: true, maxAge: 0 } });
+  assert.deepEqual(r.json().works.map((w: { workid: number }) => w.workid).sort(), [1, 2]);
+  assert.deepEqual(r.json().pending, [99], 'unknown work reported as not fetched yet');
+  const g = await app.inject({ url: '/api/works?ids=1,99&cacheOnly=1&maxAge=0' });
+  assert.equal(g.json().works.length, 1);
+  assert.equal((await app.inject({ url: '/api/series/5?cacheOnly=1' })).statusCode, 404);
+  await new Promise((r) => setTimeout(r, 400)); // give any (wrongly) queued request time to run
+  assert.equal(ao3.calls.length, 1, 'no AO3 requests from cache-only reads');
+  await app.close();
+});
+
+test('app-update: reports the newest release and streams its installer; off without GITHUB_TOKEN (#5)', async () => {
+  const seen: { url: string; auth: string | null }[] = [];
+  const github = (async (url: string | URL, init?: RequestInit) => {
+    const u = String(url);
+    seen.push({ url: u, auth: new Headers(init?.headers).get('authorization') });
+    if (u.endsWith('/repos/me/app/releases/latest')) {
+      return Response.json({ tag_name: 'v2.2.0', name: 'Ao3Track 2.2.0', body: 'notes', html_url: 'https://github.com/me/app/releases/tag/v2.2.0',
+        assets: [{ id: 7, name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4 }] });
+    }
+    if (u.endsWith('/repos/me/app/releases/assets/7')) return new Response('MSI!', { headers: { 'content-length': '4' } });
+    return new Response('nope', { status: 404 });
+  }) as typeof fetch;
+  const c = loadConfig({ DB_PATH: ':memory:', REFRESH_INTERVAL_HOURS: '0', GITHUB_TOKEN: 'ghp_x', GITHUB_REPO: 'me/app', GITHUB_API_URL: 'https://gh.test' } as NodeJS.ProcessEnv);
+  const app = await buildApp(c, fakeAo3().fetch, github);
+  const r = (await app.inject({ url: '/api/app-update' })).json();
+  assert.equal(r.configured, true);
+  assert.equal(r.version, '2.2.0');
+  assert.deepEqual(r.files, [{ name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4 }]);
+  assert.equal(seen[0].auth, 'Bearer ghp_x');
+  const d = await app.inject({ url: '/api/app-update/download/ArchiveTrackReader-2.2.0-x64.msi' });
+  assert.equal(d.statusCode, 200);
+  assert.equal(d.body, 'MSI!');
+  assert.equal((await app.inject({ url: '/api/app-update/download/other.exe' })).statusCode, 404);
+  assert.ok(!JSON.stringify(r).includes('ghp_x'), 'token never sent to clients');
+  await app.close();
+
+  const off = await buildApp(cfg(), fakeAo3().fetch);
+  assert.deepEqual((await off.inject({ url: '/api/app-update' })).json(), { configured: false });
+  await off.close();
+});

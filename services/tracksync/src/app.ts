@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import pkg from '../package.json' with { type: 'json' };
 import formbody from '@fastify/formbody';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
@@ -191,7 +192,7 @@ export async function buildApp(db: Db, config: Config): Promise<FastifyInstance>
 
   // ---- v2: dashboard, export/import, migration ----------------------------
   app.get('/api/v2/info', async () => ({
-    name: 'Ao3Track TrackSync', version: '2.1.0', allowRegistration: config.allowRegistration,
+    name: 'Ao3Track TrackSync', version: pkg.version, allowRegistration: config.allowRegistration,
     tracker: !!config.trackerUrl, legacyApiUrl: config.legacyApiUrl,
     apiUrl: config.publicUrl ? `${config.publicUrl}/api` : null,
   }));
@@ -262,11 +263,26 @@ export async function buildApp(db: Db, config: Config): Promise<FastifyInstance>
 
   app.get('/api/v2/reading-list', { preHandler: requireUser }, async (req) => store.readingList(req.user!.id));
 
-  /** Proxy to the tracker for titles, so the dashboard needn't know the tracker's address. */
+  /** Reading positions for the dashboard's "Works tracked" list. */
+  app.get('/api/v2/works', { preHandler: requireUser }, async (req) =>
+    Object.entries(store.getWorks(req.user!.id, -1)).map(([id, w]) => ({ id: Number(id), ...w })));
+
+  app.post('/api/v2/works/delete', { preHandler: requireUser }, async (req, reply) => {
+    const ids = (req.body as { ids?: unknown })?.ids;
+    if (!Array.isArray(ids) || !ids.length) return reply.code(400).send({ error: 'No works given.' });
+    return { deleted: store.deleteWorks(req.user!.id, ids.slice(0, 5000) as number[]) };
+  });
+
+  /** Positions deleted in the dashboard since `after`, so apps can forget them too. */
+  app.get('/api/v2/deleted-works', { preHandler: requireUser }, async (req) => store.deletedWorks(req.user!.id, after(req)));
+
+  /** Proxy to the tracker for titles (cached only), so the dashboard needn't know the tracker's address. */
   app.get('/api/v2/works-meta', { preHandler: requireUser }, async (req, reply) => {
     if (!config.trackerUrl) return reply.code(404).send({ error: 'No tracker configured' });
     const ids = String((req.query as Record<string, string>).ids ?? '');
-    const r = await fetch(`${config.trackerUrl}/api/works?ids=${encodeURIComponent(ids)}`, { headers: config.internalToken ? { 'x-internal-token': config.internalToken } : {} }).catch(() => null);
+    // cacheOnly: showing the dashboard must never cause AO3 requests; the tracker's
+    // own schedule keeps this data fresh.
+    const r = await fetch(`${config.trackerUrl}/api/works?cacheOnly=1&ids=${encodeURIComponent(ids)}`, { headers: config.internalToken ? { 'x-internal-token': config.internalToken } : {} }).catch(() => null);
     if (!r?.ok) return reply.code(502).send({ error: 'Tracker unavailable' });
     return r.json();
   });

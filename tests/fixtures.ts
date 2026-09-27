@@ -1,5 +1,5 @@
 /** Minimal but structurally faithful AO3 markup (blurb + work page). */
-export function blurb(id: number, o: { title?: string; ch?: string; author?: string; series?: number } = {}) {
+export function blurb(id: number, o: { title?: string; ch?: string; author?: string; series?: number; fandom?: string } = {}) {
   const [pub, tot] = (o.ch ?? '3/10').split('/');
   return `
 <li id="work_${id}" class="work blurb group work-${id} user-1" role="article">
@@ -8,7 +8,7 @@ export function blurb(id: number, o: { title?: string; ch?: string; author?: str
       <a href="/works/${id}">${o.title ?? `Work ${id}`}</a>
       by <a rel="author" href="/users/${o.author ?? 'writer'}/pseuds/${o.author ?? 'writer'}">${o.author ?? 'writer'}</a>
     </h4>
-    <h5 class="fandoms heading"><span class="landmark">Fandoms:</span> <a class="tag" href="/tags/Good%20Omens/works">Good Omens</a></h5>
+    <h5 class="fandoms heading"><span class="landmark">Fandoms:</span> <a class="tag" href="/tags/${encodeURIComponent(o.fandom ?? 'Good Omens')}/works">${o.fandom ?? 'Good Omens'}</a></h5>
     <ul class="required-tags">
       <li><a class="help symbol question modal"><span class="rating-teen rating" title="Teen And Up Audiences"><span class="text">Teen And Up Audiences</span></span></a></li>
       <li><a class="help symbol question modal"><span class="warning-no warnings" title="No Archive Warnings Apply"><span class="text">No Archive Warnings Apply</span></span></a></li>

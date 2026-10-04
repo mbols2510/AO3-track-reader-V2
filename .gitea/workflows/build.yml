@@ -1,0 +1,101 @@
+name: build
+
+on:
+  push: { branches: [main], tags: ['v*'] }
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Attach build outputs to this existing release tag (e.g. v2.0.0)'
+        required: false
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  REGISTRY: github.tech-bol.be
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npm test
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { target: [tracksync, tracker] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: docker/login-action@v3
+        with: { registry: '${{ env.REGISTRY }}', username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      # Release tags publish vX.Y.Z, X.Y.Z and latest, so docker compose can follow "latest".
+      - id: tags
+        run: |
+          img="$REGISTRY/${GITHUB_REPOSITORY_OWNER,,}/ao3track-${{ matrix.target }}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            printf 'list<<EOF\n%s:%s\n%s:%s\n%s:latest\nEOF\n' "$img" "$GITHUB_REF_NAME" "$img" "${GITHUB_REF_NAME#v}" "$img" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=$img:${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          tags: ${{ steps.tags.outputs.list }}
+
+  extension-and-msi:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: |
+          SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
+          $SUDO apt-get update && $SUDO apt-get install -y wixl zip
+      - run: npm ci
+      - run: npm run build -w apps/extension
+      - run: cd apps/reader && node build.mjs && node package-win.mjs && node make-msi.mjs
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows-msi-and-extension
+          path: |
+            apps/reader/out/*.msi
+            apps/extension/dist/*.zip
+
+  # The MSIX build needs a Windows runner; re-add it here if you register one.
+
+  release:
+    # Attach the installers to the Gitea release for this tag (created if missing).
+    needs: [extension-and-msi]
+    if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: windows-msi-and-extension
+          path: artifacts
+      - name: Upload to release
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          api="$GITHUB_SERVER_URL/api/v1/repos/$GITHUB_REPOSITORY"
+          auth="Authorization: token $TOKEN"
+          id=$(curl -fsS -H "$auth" "$api/releases/tags/$TAG" | sed -n 's/^{"id":\([0-9]*\).*/\1/p' || true)
+          if [ -z "$id" ]; then
+            id=$(curl -fsS -H "$auth" -H 'Content-Type: application/json' -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\"}" "$api/releases" | sed -n 's/^{"id":\([0-9]*\).*/\1/p')
+          fi
+          find artifacts -type f \( -name '*.msi' -o -name '*.msix' -o -name '*.zip' \) | while read -r f; do
+            echo "uploading $f"
+            curl -fsS -H "$auth" -F "attachment=@$f" "$api/releases/$id/assets?name=$(basename "$f")"
+          done

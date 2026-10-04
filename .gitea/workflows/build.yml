@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - if: startsWith(github.ref, 'refs/tags/')
+      - if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with: { registry: '${{ env.REGISTRY }}', username: '${{ github.repository_owner }}', password: '${{ secrets.REGISTRY_TOKEN }}' }
       # Release tags publish vX.Y.Z, X.Y.Z and latest, so docker compose can follow "latest".
@@ -49,7 +49,7 @@ jobs:
           context: .
           target: ${{ matrix.target }}
           platforms: linux/amd64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.list }}
 
   extension-and-msi:

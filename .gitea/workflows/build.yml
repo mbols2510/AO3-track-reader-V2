@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm }
+        with: { node-version: 24 }
       - run: npm ci
       - run: npx tsc -p tsconfig.json --noEmit
       - run: npm test
@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: npm }
+        with: { node-version: 24 }
       - run: |
           SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
           $SUDO apt-get update && $SUDO apt-get install -y wixl zip

@@ -41,6 +41,8 @@ jobs:
           img="$REGISTRY/${GITHUB_REPOSITORY_OWNER,,}/ao3track-${{ matrix.target }}"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             printf 'list<<EOF\n%s:%s\n%s:%s\n%s:latest\nEOF\n' "$img" "$GITHUB_REF_NAME" "$img" "${GITHUB_REF_NAME#v}" "$img" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            printf 'list<<EOF\n%s:main\n%s:latest\nEOF\n' "$img" "$img" >> "$GITHUB_OUTPUT"
           else
             echo "list=$img:${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
           fi

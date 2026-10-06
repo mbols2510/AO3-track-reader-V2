@@ -34,6 +34,10 @@ export interface ReadingListItem {
   favourite: boolean;
   continueUrl: string;
   seriesWorks?: number;
+  /** Series in the reading list that contain this work (empty for series and listings). */
+  seriesIds: number[];
+  /** Listed only because a series in the reading list contains it. */
+  derived: boolean;
   /** Filters applied to a listing ("complete only · English"), '' otherwise. */
   detail: string;
 }
@@ -89,13 +93,13 @@ export class ReadingListService extends EventEmitter {
 
   items(): ReadingListItem[] {
     const favs = new Set(this.prefs().favourites);
-    return Object.entries(this.engine.state.readingList.paths).map(([key, addedAt]) => {
+    const build = ([key, addedAt]: [string, number]): ReadingListItem => {
       const workid = workIdFromUrl(key);
       const seriesid = workid ? null : seriesIdFromUrl(key);
       const base = {
         key, url: link(key), addedAt, favourite: favs.has(key), summary: '', rating: null, words: null,
         authors: [] as string[], fandoms: [] as string[], chaptersPublished: null, chaptersTotal: null,
-        chaptersRead: 0, unread: null, complete: false, updated: null, fetchedAt: null, missing: false, continueUrl: link(key), detail: '',
+        chaptersRead: 0, unread: null, complete: false, updated: null, fetchedAt: null, missing: false, continueUrl: link(key), detail: '', seriesIds: [] as number[], derived: false,
       };
       if (workid) {
         const m: WorkMeta | undefined = this.meta.data.works[workid];
@@ -130,7 +134,23 @@ export class ReadingListService extends EventEmitter {
           unread, complete: !!s?.complete, updated: s?.updated ?? null, fetchedAt: s?.fetchedAt ?? null, seriesWorks: s?.workIds.length };
       }
       return { ...base, kind: 'other' as const, id: null, title: listingTitle(key), detail: listingFilters(key) };
-    });
+    };
+    const own = Object.entries(this.engine.state.readingList.paths).map(build);
+    // The works of a series in the list belong under that series, whether or not they are listed themselves (#13).
+    const seriesOf = new Map<number, number[]>();
+    for (const s of own) {
+      if (s.kind !== 'series' || s.id === null) continue;
+      for (const w of this.meta.data.series[s.id]?.workIds ?? []) seriesOf.set(w, [...(seriesOf.get(w) ?? []), s.id]);
+    }
+    const listed = new Set<number>();
+    for (const i of own) if (i.kind === 'work' && i.id !== null) { listed.add(i.id); i.seriesIds = seriesOf.get(i.id) ?? []; }
+    const addedAt = new Map(own.filter((i) => i.kind === 'series').map((i) => [i.id, i.addedAt]));
+    const derived: ReadingListItem[] = [];
+    for (const [w, sids] of seriesOf) {
+      if (listed.has(w)) continue;
+      derived.push({ ...build([`https://archiveofourown.org/works/${w}`, addedAt.get(sids[0]) ?? 0]), derived: true, seriesIds: sids });
+    }
+    return [...own, ...derived];
   }
 
   // ---- free metadata from pages the user is browsing ----
@@ -197,6 +217,16 @@ export class ReadingListService extends EventEmitter {
     return { base: this.prefs().trackerUrl.trim().replace(/\/+$/, ''), auth: (key ? { 'X-Api-Key': key } : {}) as Record<string, string> };
   }
 
+  /** Adds the works of listed series that we have no metadata for yet: the tracker's series answer lists them but carries no fandoms. */
+  private withSeriesWorks(workIds: number[]): number[] {
+    const out = new Set(workIds);
+    for (const i of this.items()) {
+      if (i.kind !== 'series' || i.id === null) continue;
+      for (const w of this.meta.data.series[i.id]?.workIds ?? []) if (!this.meta.data.works[w] && !this.meta.data.missing[w]) out.add(w);
+    }
+    return [...out];
+  }
+
   /** Take whatever the tracker has cached. The tracker never contacts AO3 for these calls. */
   private async fromTrackerCache(workIds: number[], seriesIds: number[]) {
     const { base, auth } = this.trackerBase();
@@ -205,6 +235,7 @@ export class ReadingListService extends EventEmitter {
       if (r.status === 401) throw new Error('The tracker needs an API key — add it in Settings.');
       if (r.ok) this.meta.data.series[s] = await r.json();
     }
+    workIds = this.withSeriesWorks(workIds);
     for (let i = 0; i < workIds.length; i += 500) {
       const r = await fetch(`${base}/api/works`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...auth },
@@ -245,7 +276,7 @@ export class ReadingListService extends EventEmitter {
       this.pending--;
     }
     // Ask, then poll while the tracker works through its queue at AO3's pace.
-    let remaining = workIds;
+    let remaining = this.withSeriesWorks(workIds);
     const invisible: number[] = [];
     for (let round = 0; remaining.length && round < 30; round++) {
       const r = await fetch(`${base}/api/works`, {

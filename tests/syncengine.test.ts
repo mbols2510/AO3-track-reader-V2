@@ -57,8 +57,11 @@ test('offline edits made on both devices merge without loss', async () => {
   await a.signIn(url, 'yan', 'password1', true);
   await b.signIn(url, 'yan', 'password1');
   a.setWork(1, { number: 5, chapterid: 15, location: null, seq: null });
-  b.setWork(1, { number: 2, chapterid: 12, location: 0, seq: null });
+  // b's *last* write must be work 1: b's sync cursor is the newest timestamp it uploaded, and a
+  // answers by re-stamping its own copy of 1 to b's timestamp + 1. If work 2 were written even 1 ms
+  // after work 1, b's cursor would already be past that, and b would never download a's chapter 5.
   b.setWork(2, { number: 1, chapterid: 0, location: 4_000_000_000, seq: null });
+  b.setWork(1, { number: 2, chapterid: 12, location: 0, seq: null });
   await b.sync(); // b uploads its (behind) copy of 1 first
   await a.sync(); // a is further along on 1 and must win
   await b.sync();

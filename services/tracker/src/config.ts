@@ -27,11 +27,12 @@ export function loadConfig(env = process.env) {
     downloadsDir: env.DOWNLOADS_DIR ? resolve(env.DOWNLOADS_DIR) : null,
     /** When set, /api/* requires this key (X-Api-Key header or Bearer token). Set it before exposing the tracker to the internet. */
     apiKey: env.API_KEY || null,
-    /** Read-only GitHub token so readers can be told about (and download) new versions from a private repo. */
-    githubToken: env.GITHUB_TOKEN || null,
-    githubRepo: env.GITHUB_REPO || 'mbols2510/AO3-track-reader-V2',
-    /** Testing only: point at a fake GitHub API. */
-    githubApi: (env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, ''),
+    /** Gitea server that hosts the reader's releases, so readers can be told about (and download) new versions. */
+    giteaUrl: (env.GITEA_URL || 'https://github.tech-bol.be').replace(/\/+$/, ''),
+    /** owner/name of the repository; set GITEA_REPO to an empty value to turn update checks off. */
+    giteaRepo: env.GITEA_REPO ?? 'bolm/AO3-track-reader-V2',
+    /** Optional read-only token, only needed while the repository is private. */
+    giteaToken: env.GITEA_TOKEN || null,
     corsOrigins: (env.CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   };
 }

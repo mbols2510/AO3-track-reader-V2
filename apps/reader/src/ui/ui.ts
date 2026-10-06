@@ -217,10 +217,23 @@ function renderList() {
   };
   list = list.sort((a, b) => Number(b.favourite) - Number(a.favourite) || by[prefs.readingListSort](a, b));
 
+  // A series' works nest under its card (works only listed through the series vanish with it).
+  const shownSeries = new Map<number, ReadingListItem>();
+  for (const i of list) if (i.kind === 'series' && i.id !== null) shownSeries.set(i.id, i);
+  nested = new Map();
+  list = list.filter((i) => {
+    const parent = i.kind === 'work' ? i.seriesIds.find((s) => shownSeries.has(s)) : undefined;
+    if (parent === undefined) return !i.derived;
+    const key = shownSeries.get(parent)!.key;
+    nested.set(key, [...(nested.get(key) ?? []), i]);
+    return false;
+  });
+
   const total = items.reduce((n, i) => n + (i.kind === 'work' && i.unread ? 1 : 0), 0);
   $('#unread-total').hidden = !total;
   $('#unread-total').textContent = total > 99 ? '99+' : String(total);
-  $('#rl-count').textContent = items.length ? String(items.length) : '';
+  const listed = items.filter((i) => !i.derived).length;
+  $('#rl-count').textContent = listed ? String(listed) : '';
 
   const ul = $('#rl-list');
   ul.replaceChildren();
@@ -234,7 +247,7 @@ function renderList() {
   }
   if (!grouped) {
     lastGroups = [];
-    for (const i of list) ul.append(card(i));
+    for (const i of list) ul.append(...cardWithKids(i));
     highlightCurrent();
     return;
   }
@@ -262,7 +275,7 @@ function renderList() {
       setCollapsed([...next]);
     };
     const li = h('li', { class: `rl-group${open ? '' : ' closed'}` }, head);
-    if (open) { const inner = h('ul', { class: 'group-items' }); for (const i of g.items) inner.append(card(i)); li.append(inner); }
+    if (open) { const inner = h('ul', { class: 'group-items' }); for (const i of g.items) inner.append(...cardWithKids(i)); li.append(inner); }
     ul.append(li);
   }
   highlightCurrent();
@@ -277,6 +290,13 @@ const FIXED_GROUPS = [G_LISTINGS, G_PENDING, G_MISSING];
 interface Group { name: string; label: string; items: ReadingListItem[] }
 const fandomLabel = (f: string) => fandomDisplayName(f, prefs?.fandomNames ?? {});
 let lastGroups: Group[] = [];
+/** Works to show under each series card (by the series' key). */
+let nested = new Map<string, ReadingListItem[]>();
+
+function cardWithKids(i: ReadingListItem): HTMLElement[] {
+  const kids = nested.get(i.key);
+  return kids?.length ? [card(i), h('li', { class: 'sub' }, h('ul', { class: 'sub-items' }, ...kids.map(card)))] : [card(i)];
+}
 
 function groupItems(list: ReadingListItem[]): Group[] {
   // A tag listing named after a fandom that's already in the list joins that fandom's group.
@@ -352,10 +372,10 @@ function card(i: ReadingListItem) {
     if (i.unread) act('Mark read', () => api.invoke('ui:readingList:markRead', i.key, true));
     if (i.chaptersRead) act('Mark unread', () => api.invoke('ui:readingList:markRead', i.key, false));
   }
-  act('Remove', () => { void api.invoke('ui:readingList:remove', i.key); toast('Removed from reading list'); });
+  if (!i.derived) act('Remove', () => { void api.invoke('ui:readingList:remove', i.key); toast('Removed from reading list'); });
 
   const el = h('li', { class: 'card', tabIndex: 0, title: i.kind === 'other' ? i.url : i.summary.slice(0, 400) },
-    fav,
+    i.derived ? null : fav,
     h('div', { class: 't' }, i.title),
     h('div', { class: 'by' }, i.kind === 'other' ? i.detail || (/\/tags\/|[?&]tag_id=/.test(i.key) ? 'All works' : '') : [i.authors.join(', '), i.fandoms.slice(0, 2).map(fandomLabel).join(', ')].filter(Boolean).join(' · ') || (i.kind === 'series' ? 'Series' : '')),
     i.kind === 'work' && i.chaptersPublished ? h('div', { class: `bar${pct >= 100 ? ' full' : ''}` }, h('i', { style: `width:${pct}%` } as never)) : null,
@@ -525,7 +545,7 @@ $('#check-update').onclick = async (e) => {
   const r = await busy(e.currentTarget as HTMLButtonElement, 'Checking…', () => api.invoke<{ state: string; error?: string }>('ui:checkUpdate'));
   const msg: Record<string, string> = {
     'no-tracker': 'Updates are checked through your tracker — set it up above first.',
-    'not-configured': 'Your tracker isn\'t set up to check for updates yet (GITHUB_TOKEN in its .env).',
+    'not-configured': 'Your tracker isn\'t set up to check for updates yet (GITEA_REPO in its .env).',
     'up-to-date': 'You have the latest version.',
   };
   if (r.state === 'error') { out.className = 'small bad'; out.textContent = `Couldn't check: ${r.error}`; }

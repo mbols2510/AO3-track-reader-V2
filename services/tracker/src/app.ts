@@ -16,12 +16,12 @@ const same = (a: string, b: string) => {
 
 export type TrackerApp = FastifyInstance & { gateway: Gateway; refresher: Refresher; updates: UpdateChecker };
 
-export async function buildApp(config: Config, fetchImpl?: FetchLike, githubFetch?: typeof fetch): Promise<TrackerApp> {
+export async function buildApp(config: Config, fetchImpl?: FetchLike, giteaFetch?: typeof fetch): Promise<TrackerApp> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
   const cache = new MetaCache(config.dbPath);
   const gw = new Gateway(cache, config, fetchImpl);
   const refresher = new Refresher(gw, config, app.log);
-  const updates = new UpdateChecker(config, githubFetch);
+  const updates = new UpdateChecker(config, giteaFetch);
 
   gw.limiter.onStatus((s) => {
     if (s.pausedUntil && s.consecutiveRateLimits) app.log.warn({ until: new Date(s.pausedUntil).toISOString() }, 'AO3 rate limit reached — pausing all requests');
@@ -91,15 +91,15 @@ export async function buildApp(config: Config, fetchImpl?: FetchLike, githubFetc
     return { started: true };
   });
 
-  /** Newest desktop-reader release, for the reader's update check (needs GITHUB_TOKEN in .env). */
+  /** Newest desktop-reader release, for the reader's update check (from the Gitea releases). */
   app.get('/api/app-update', async (req) => {
     if (!updates.configured) return { configured: false };
     const { release, error } = await updates.latest(q(req).force === '1');
-    return { configured: true, error, ...(release ? { version: release.version, name: release.name, notes: release.notes, url: release.url, publishedAt: release.publishedAt, files: release.assets.map(({ name, size, sha256 }) => ({ name, size, ...(sha256 ? { sha256 } : {}) })) } : {}) };
+    return { configured: true, error, ...(release ? { version: release.version, name: release.name, notes: release.notes, url: release.url, publishedAt: release.publishedAt, files: release.assets.map(({ name, size }) => ({ name, size })) } : {}) };
   });
 
   app.get<{ Params: { name: string } }>('/api/app-update/download/:name', async (req, reply) => {
-    if (!updates.configured) return reply.code(404).send({ error: 'Updates are not configured (GITHUB_TOKEN)' });
+    if (!updates.configured) return reply.code(404).send({ error: 'Updates are not configured (GITEA_REPO)' });
     const r = await updates.download(req.params.name).catch(() => null);
     if (!r) return reply.code(404).send({ error: 'No such file in the latest release' });
     reply.header('Content-Type', 'application/octet-stream').header('Content-Disposition', `attachment; filename="${req.params.name.replace(/"/g, '')}"`);

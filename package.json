@@ -1,7 +1,7 @@
 {
   "name": "ao3track",
   "private": true,
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "Ao3Track revived: sync server, AO3 tracker gateway, browser extension and desktop reader",
   "license": "Apache-2.0",
   "type": "module",

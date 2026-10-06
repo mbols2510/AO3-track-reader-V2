@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.3.0 — 2026-10-06
+
+### Enhancements
+- **A series' works are grouped under the series** ([#13](https://github.tech-bol.be/bolm/AO3-track-reader-V2/issues/13)). In the reading list, the works of a series now appear as a sub-group under the series card, inside the right fandom group. They are added automatically even if you never listed them yourself (remove the series to remove them).
+
+### Fixes
+- **Series no longer sit under "Waiting for details"** ([#13](https://github.tech-bol.be/bolm/AO3-track-reader-V2/issues/13)). A series takes its fandom from its works, but when the reader used a tracker those works were never looked up unless you had listed them. The refresh now looks them up too.
+- **Update checks use Gitea** ([#12](https://github.tech-bol.be/bolm/AO3-track-reader-V2/issues/12)). The tracker now looks for new reader versions on the Gitea server instead of GitHub.
+
+### Upgrading
+- **Servers:** `docker compose pull && docker compose up -d` (add your usual `-f` files). In `.env`, replace `GITHUB_TOKEN` / `GITHUB_REPO` with `GITEA_TOKEN` (only needed while the repository is private) and optionally `GITEA_URL` / `GITEA_REPO`; see `.env.example`.
+- **Reader:** run `ArchiveTrackReader-2.3.0-x64.msi`. Readers older than 2.3.0 still ask the tracker, so they get the update through it once the tracker is upgraded.
+- **Extension:** unchanged apart from the version number.
+- Gitea publishes no checksum for release files, so the reader checks an update's size but not its sha256 any more.
+
 ## 2.2.2 — 2026-09-27
 
 ### Fixes

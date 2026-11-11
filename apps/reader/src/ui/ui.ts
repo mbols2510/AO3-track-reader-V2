@@ -545,7 +545,7 @@ $('#check-update').onclick = async (e) => {
   const r = await busy(e.currentTarget as HTMLButtonElement, 'Checking…', () => api.invoke<{ state: string; error?: string }>('ui:checkUpdate'));
   const msg: Record<string, string> = {
     'no-tracker': 'Updates are checked through your tracker — set it up above first.',
-    'not-configured': 'Your tracker isn\'t set up to check for updates yet (GITEA_REPO in its .env).',
+    'not-configured': 'Your tracker isn\'t set up to check for updates yet (GITHUB_REPO in its .env).',
     'up-to-date': 'You have the latest version.',
   };
   if (r.state === 'error') { out.className = 'small bad'; out.textContent = `Couldn't check: ${r.error}`; }

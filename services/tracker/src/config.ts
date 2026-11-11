@@ -27,9 +27,10 @@ export function loadConfig(env = process.env) {
     downloadsDir: env.DOWNLOADS_DIR ? resolve(env.DOWNLOADS_DIR) : null,
     /** When set, /api/* requires this key (X-Api-Key header or Bearer token). Set it before exposing the tracker to the internet. */
     apiKey: env.API_KEY || null,
-    /** Read-only GitHub token so readers can be told about (and download) new versions from a private repo. */
+    /** Optional read-only GitHub token, only needed while the repository is private. */
     githubToken: env.GITHUB_TOKEN || null,
-    githubRepo: env.GITHUB_REPO || 'mbols2510/AO3-track-reader-V2',
+    /** owner/name of the repository; set GITHUB_REPO to an empty value to turn update checks off. */
+    githubRepo: env.GITHUB_REPO ?? 'mbols2510/AO3-track-reader-V2',
     /** Testing only: point at a fake GitHub API. */
     githubApi: (env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, ''),
     corsOrigins: (env.CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),

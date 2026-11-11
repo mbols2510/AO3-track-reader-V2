@@ -48,7 +48,7 @@ services:
       API_KEY: ${TRACKER_API_KEY:-}
       # Lets desktop readers find and download new versions (read-only token; see .env.example).
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_REPO: ${GITHUB_REPO:-mbols2510/AO3-track-reader-V2}
+      GITHUB_REPO: ${GITHUB_REPO-mbols2510/AO3-track-reader-V2}
     volumes:
       - tracker-data:/data
     depends_on:

@@ -82,7 +82,7 @@ test('cacheOnly reads never contact AO3, even for stale or unknown works (#7)', 
   await app.close();
 });
 
-test('app-update: reports the newest release and streams its installer; off without GITHUB_TOKEN (#5)', async () => {
+test('app-update: reports the newest release and streams its installer; off when GITHUB_REPO is empty (#5)', async () => {
   const seen: { url: string; auth: string | null }[] = [];
   const github = (async (url: string | URL, init?: RequestInit) => {
     const u = String(url);
@@ -112,7 +112,7 @@ test('app-update: reports the newest release and streams its installer; off with
   assert.ok(!JSON.stringify(r).includes('ghp_x'), 'token never sent to clients');
   await app.close();
 
-  const off = await buildApp(cfg(), fakeAo3().fetch);
+  const off = await buildApp(loadConfig({ DB_PATH: ':memory:', REFRESH_INTERVAL_HOURS: '0', GITHUB_REPO: '' } as NodeJS.ProcessEnv), fakeAo3().fetch);
   assert.deepEqual((await off.inject({ url: '/api/app-update' })).json(), { configured: false });
   await off.close();
 });

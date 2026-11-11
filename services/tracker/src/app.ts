@@ -91,7 +91,7 @@ export async function buildApp(config: Config, fetchImpl?: FetchLike, githubFetc
     return { started: true };
   });
 
-  /** Newest desktop-reader release, for the reader's update check (needs GITHUB_TOKEN in .env). */
+  /** Newest desktop-reader release, for the reader's update check (on by default; set GITHUB_REPO empty to turn off). */
   app.get('/api/app-update', async (req) => {
     if (!updates.configured) return { configured: false };
     const { release, error } = await updates.latest(q(req).force === '1');
@@ -99,7 +99,7 @@ export async function buildApp(config: Config, fetchImpl?: FetchLike, githubFetc
   });
 
   app.get<{ Params: { name: string } }>('/api/app-update/download/:name', async (req, reply) => {
-    if (!updates.configured) return reply.code(404).send({ error: 'Updates are not configured (GITHUB_TOKEN)' });
+    if (!updates.configured) return reply.code(404).send({ error: 'Updates are not configured (GITHUB_REPO)' });
     const r = await updates.download(req.params.name).catch(() => null);
     if (!r) return reply.code(404).send({ error: 'No such file in the latest release' });
     reply.header('Content-Type', 'application/octet-stream').header('Content-Disposition', `attachment; filename="${req.params.name.replace(/"/g, '')}"`);

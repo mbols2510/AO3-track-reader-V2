@@ -82,35 +82,37 @@ test('cacheOnly reads never contact AO3, even for stale or unknown works (#7)', 
   await app.close();
 });
 
-test('app-update: reports the newest Gitea release and streams its installer; off without GITEA_REPO (#5, #12)', async () => {
+test('app-update: reports the newest release and streams its installer; off without GITHUB_TOKEN (#5)', async () => {
   const seen: { url: string; auth: string | null }[] = [];
-  const gitea = (async (url: string | URL, init?: RequestInit) => {
+  const github = (async (url: string | URL, init?: RequestInit) => {
     const u = String(url);
     seen.push({ url: u, auth: new Headers(init?.headers).get('authorization') });
-    if (u === 'https://gitea.test/api/v1/repos/me/app/releases/latest') {
-      return Response.json({ tag_name: 'v2.2.0', name: 'Ao3Track 2.2.0', body: 'notes', html_url: 'https://gitea.test/me/app/releases/tag/v2.2.0',
+    if (u.endsWith('/repos/me/app/releases/latest')) {
+      return Response.json({ tag_name: 'v2.2.0', name: 'Ao3Track 2.2.0', body: 'notes', html_url: 'https://github.com/me/app/releases/tag/v2.2.0',
         assets: [
-          { id: 7, name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4, browser_download_url: 'https://gitea.test/me/app/releases/download/v2.2.0/ArchiveTrackReader-2.2.0-x64.msi' },
+          { id: 7, name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4, state: 'uploaded', digest: `sha256:${'AB'.repeat(32)}` },
+          // Still being uploaded by CI: must not be offered (it would download cut off).
+          { id: 8, name: 'ArchiveTrackReader-2.2.0-x64.msix', size: 9, state: 'open' },
         ] });
     }
-    if (u === 'https://gitea.test/me/app/releases/download/v2.2.0/ArchiveTrackReader-2.2.0-x64.msi') return new Response('MSI!', { headers: { 'content-length': '4' } });
+    if (u.endsWith('/repos/me/app/releases/assets/7')) return new Response('MSI!', { headers: { 'content-length': '4' } });
     return new Response('nope', { status: 404 });
   }) as typeof fetch;
-  const c = loadConfig({ DB_PATH: ':memory:', REFRESH_INTERVAL_HOURS: '0', GITEA_TOKEN: 'tok_x', GITEA_REPO: 'me/app', GITEA_URL: 'https://gitea.test' } as NodeJS.ProcessEnv);
-  const app = await buildApp(c, fakeAo3().fetch, gitea);
+  const c = loadConfig({ DB_PATH: ':memory:', REFRESH_INTERVAL_HOURS: '0', GITHUB_TOKEN: 'ghp_x', GITHUB_REPO: 'me/app', GITHUB_API_URL: 'https://gh.test' } as NodeJS.ProcessEnv);
+  const app = await buildApp(c, fakeAo3().fetch, github);
   const r = (await app.inject({ url: '/api/app-update' })).json();
   assert.equal(r.configured, true);
   assert.equal(r.version, '2.2.0');
-  assert.deepEqual(r.files, [{ name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4 }]);
-  assert.equal(seen[0].auth, 'token tok_x');
+  assert.deepEqual(r.files, [{ name: 'ArchiveTrackReader-2.2.0-x64.msi', size: 4, sha256: 'ab'.repeat(32) }]);
+  assert.equal(seen[0].auth, 'Bearer ghp_x');
   const d = await app.inject({ url: '/api/app-update/download/ArchiveTrackReader-2.2.0-x64.msi' });
   assert.equal(d.statusCode, 200);
   assert.equal(d.body, 'MSI!');
   assert.equal((await app.inject({ url: '/api/app-update/download/other.exe' })).statusCode, 404);
-  assert.ok(!JSON.stringify(r).includes('tok_x'), 'token never sent to clients');
+  assert.ok(!JSON.stringify(r).includes('ghp_x'), 'token never sent to clients');
   await app.close();
 
-  const off = await buildApp(loadConfig({ DB_PATH: ':memory:', REFRESH_INTERVAL_HOURS: '0', GITEA_REPO: '' } as NodeJS.ProcessEnv), fakeAo3().fetch);
+  const off = await buildApp(cfg(), fakeAo3().fetch);
   assert.deepEqual((await off.inject({ url: '/api/app-update' })).json(), { configured: false });
   await off.close();
 });

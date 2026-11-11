@@ -57,10 +57,10 @@ The defaults in `.env` are safe to leave alone. The ones worth knowing:
 | `ALLOW_REGISTRATION` | `true` | Set `false` once your account exists (required before going public in Part 5) |
 | `AO3TRACK_VERSION` | `latest` | Pin a version (e.g. `2.2.2`) if you don't want to follow every release |
 | `REFRESH_INTERVAL_HOURS` | `6` | How often the tracker checks your reading list for new chapters (even while the reader is closed) |
-| `GITEA_TOKEN` | empty | Only needed while the repository is private, so the desktop reader can find new versions (see below) |
+| `GITHUB_TOKEN` | empty | Set it so the desktop reader can tell you about new versions and install them (see below) |
 | `RATE_REFILL_SECONDS` | `12` | Seconds between AO3 requests; raising it is gentler, lowering it is not recommended |
 
-**Reader updates.** The desktop reader asks your tracker whether a new version exists, and the tracker asks the Gitea server (`GITEA_URL`, repository `GITEA_REPO`). If the repository is private, the tracker needs a read-only token: in Gitea, *Settings* → *Applications* → *Generate new token* with the **repository: Read** permission, pasted into `.env` after `GITEA_TOKEN=`. Leave it empty for a public repository. The reader then checks shortly after it starts (and via *Settings → Check for updates*), and offers *Install now*, *Later* or *Skip this version*.
+**Reader updates.** The desktop reader asks your tracker whether a new version exists, and the tracker asks GitHub. Because the repository is private, the tracker needs a read-only token: on GitHub, *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained tokens* → *Generate new token*, choose **Only select repositories** → this repository, and under *Repository permissions* set **Contents: Read-only**. Paste it into `.env` after `GITHUB_TOKEN=`. The reader then checks shortly after it starts (and via *Settings → Check for updates*), and offers *Install now*, *Later* or *Skip this version*.
 
 After editing `.env`, apply it with `docker compose up -d`. If something doesn't start, `docker compose logs tracksync` or `docker compose logs tracker` shows why.
 
@@ -239,6 +239,6 @@ docker compose start tracksync
 | Tracker *Test* says *wrong or missing API key* | Key in the reader doesn't match `TRACKER_API_KEY` | Copy the value from `.env` again, without spaces |
 | Reading list says *Updates paused by AO3* | AO3 rate-limited your home IP | Nothing: it resumes automatically (after at least 5 minutes). If frequent, raise `RATE_REFILL_SECONDS` |
 | `docker compose pull` says *denied* or *unauthorized* | Docker isn't signed in to ghcr.io, or the token lacks `read:packages` | Part 1, step 5 |
-| *Check for updates* says the tracker isn't set up | `GITEA_REPO` is empty in `.env`, or the repository is private and `GITEA_TOKEN` is missing | See *Reader updates* in Part 1, then `docker compose up -d` |
+| *Check for updates* says the tracker isn't set up | `GITHUB_TOKEN` missing from `.env` | See *Reader updates* in Part 1, then `docker compose up -d` |
 | Extension won't sign in | Permission prompt was dismissed | Remove and re-add the extension, then sign in again and allow the prompt |
 | Syncing stopped after a password change | Changing the password signs every device out, by design | Sign in again on each device |

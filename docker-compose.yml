@@ -46,10 +46,9 @@ services:
       USER_AGENT: ${USER_AGENT:-Ao3Track/2.0 (self-hosted personal reading tracker)}
       AO3_COOKIE: ${AO3_COOKIE:-}
       API_KEY: ${TRACKER_API_KEY:-}
-      # Lets desktop readers find and download new versions from Gitea (token optional; see .env.example).
-      GITEA_TOKEN: ${GITEA_TOKEN:-}
-      GITEA_URL: ${GITEA_URL:-https://github.tech-bol.be}
-      GITEA_REPO: ${GITEA_REPO-bolm/AO3-track-reader-V2}
+      # Lets desktop readers find and download new versions (read-only token; see .env.example).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-mbols2510/AO3-track-reader-V2}
     volumes:
       - tracker-data:/data
     depends_on:

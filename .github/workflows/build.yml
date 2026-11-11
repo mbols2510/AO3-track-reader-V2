@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - if: startsWith(github.ref, 'refs/tags/')
+      - if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
       # Release tags publish vX.Y.Z, X.Y.Z and latest, so docker compose can follow "latest".
@@ -44,6 +44,8 @@ jobs:
           img="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ao3track-${{ matrix.target }}"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             printf 'list<<EOF\n%s:%s\n%s:%s\n%s:latest\nEOF\n' "$img" "$GITHUB_REF_NAME" "$img" "${GITHUB_REF_NAME#v}" "$img" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            printf 'list<<EOF\n%s:main\n%s:latest\nEOF\n' "$img" "$img" >> "$GITHUB_OUTPUT"
           else
             echo "list=$img:${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
           fi
@@ -52,7 +54,7 @@ jobs:
           context: .
           target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

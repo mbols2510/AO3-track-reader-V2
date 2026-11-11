@@ -62,24 +62,11 @@ jobs:
   extension-and-msi:
     needs: test
     runs-on: ubuntu-24.04
+    # Alpine's CDN is reachable from the runners, while the Ubuntu apt mirrors sometimes aren't.
+    container: node:24-alpine
     steps:
+      - run: apk add --no-cache git zip msitools
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with: { node-version: 24, cache: npm }
-      # The runner has no working IPv6 and its default Ubuntu mirror is flaky: force IPv4 and
-      # fall back to other public mirrors with short timeouts.
-      - run: |
-          O="-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
-          for mirror in default http://mirrors.edge.kernel.org/ubuntu/ http://archive.ubuntu.com/ubuntu/ http://mirror.hetzner.com/ubuntu/packages/ http://mirrors.xtom.com/ubuntu/; do
-            if [ "$mirror" != default ]; then
-              echo "trying mirror $mirror"
-              echo "$mirror priority:1" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
-            fi
-            sudo timeout 90 apt-get update $O \
-              && sudo timeout 240 apt-get install -y --fix-missing $O wixl zip \
-              && exit 0
-          done
-          exit 1
       - run: npm ci
       - run: npm run build -w apps/extension
       - run: cd apps/reader && node build.mjs && node package-win.mjs && node make-msi.mjs
